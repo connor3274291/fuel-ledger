@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fuel Ledger</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --ink:#0E1116; --panel:#171C24; --panel-2:#1E2530; --line:#2A3240;
+    --fog:#8B95A5; --fog-dim:#5C6675; --paper:#EDF0F4;
+    --signal:#48C7FF; --signal-dim:#1F4A5C; --ember:#FF8A4C; --mint:#5FE3A6;
+    --violet:#B18BFF; --danger:#FF6B6B; --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--ink);color:var(--paper);font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;min-height:100vh;}
+  .app{max-width:640px;margin:0 auto;padding:0 0 100px;min-height:100vh;}
+  .topbar{padding:22px 18px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(14,17,22,0.92);backdrop-filter:blur(8px);z-index:20;}
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand-mark{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--signal),var(--mint));display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--ink);font-size:15px;}
+  .brand-name{font-weight:700;font-size:17px;}
+  .brand-sub{font-size:10.5px;color:var(--fog-dim);text-transform:uppercase;letter-spacing:1.5px;margin-top:1px;}
+  .date-pill{font-size:12px;color:var(--fog);background:var(--panel);border:1px solid var(--line);padding:6px 10px;border-radius:20px;}
+  .who-banner{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:14px 18px 0;font-size:12px;}
+  .who-banner .who-name{color:var(--paper);font-weight:700;}
+  .who-banner button{background:none;border:none;color:var(--fog-dim);font-size:11.5px;cursor:pointer;text-decoration:underline;}
+  .who-banner button:hover{color:var(--danger);}
+  .nav{display:flex;gap:6px;padding:14px 18px 6px;overflow-x:auto;}
+  .nav button{background:transparent;border:1px solid var(--line);color:var(--fog);padding:9px 14px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
+  .nav button.active{background:var(--paper);color:var(--ink);border-color:var(--paper);}
+  .view{padding:16px 18px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:14px;}
+  .card-title{font-weight:700;font-size:15px;margin:0 0 12px;display:flex;align-items:center;justify-content:space-between;}
+  .card-title .tag{font-size:10.5px;color:var(--fog-dim);font-weight:400;}
+  textarea,input,select{width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--paper);border-radius:10px;padding:11px 12px;font-size:14px;resize:none;outline:none;}
+  textarea:focus,input:focus,select:focus{border-color:var(--signal);}
+  label{font-size:11.5px;color:var(--fog);text-transform:uppercase;letter-spacing:0.8px;display:block;margin-bottom:6px;font-weight:600;}
+  .field{margin-bottom:12px;}
+  .row{display:flex;gap:10px;}
+  .row > *{flex:1;}
+  .btn{font-weight:700;font-size:14px;background:var(--signal);color:var(--ink);border:none;border-radius:10px;padding:12px 16px;cursor:pointer;}
+  .btn:hover{opacity:0.92;}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--paper);}
+  .btn.small{padding:7px 12px;font-size:12.5px;border-radius:8px;}
+  .btn.full{width:100%;}
+  .btn:disabled{opacity:0.5;cursor:default;}
+  .entry{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);}
+  .entry:last-child{border-bottom:none;}
+  .entry-name{font-size:13.5px;font-weight:600;}
+  .entry-meta{font-size:11px;color:var(--fog);margin-top:2px;}
+  .entry-cals{font-size:13px;color:var(--signal);font-weight:700;}
+  .del-btn{background:none;border:none;color:var(--fog-dim);cursor:pointer;font-size:15px;padding:0 0 0 10px;}
+  .del-btn:hover{color:var(--danger);}
+  .empty{color:var(--fog-dim);font-size:13px;text-align:center;padding:20px 0;}
+  .water-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+  .water-chip{background:var(--panel-2);border:1px solid var(--line);color:var(--paper);padding:8px 14px;border-radius:20px;font-size:13px;cursor:pointer;}
+  .water-chip:hover{border-color:var(--signal);color:var(--signal);}
+  .supp-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);}
+  .supp-row:last-child{border-bottom:none;}
+  .check{width:20px;height:20px;border-radius:6px;border:1.5px solid var(--fog-dim);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:13px;}
+  .check.on{background:var(--mint);border-color:var(--mint);color:var(--ink);}
+  .supp-name{font-size:13.5px;font-weight:600;flex:1;}
+  .supp-dose{font-size:11.5px;color:var(--fog);}
+  .ring-row{display:flex;gap:10px;overflow-x:auto;padding:4px 0 14px;}
+  .ring-card{flex:0 0 auto;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px;width:104px;text-align:center;}
+  .ring{width:64px;height:64px;border-radius:50%;margin:0 auto 8px;position:relative;display:flex;align-items:center;justify-content:center;}
+  .ring::before{content:'';position:absolute;inset:0;border-radius:50%;background:conic-gradient(var(--ring-color) calc(var(--pct)*1%), var(--panel-2) 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 8px),#000 calc(100% - 7px));mask:radial-gradient(farthest-side,transparent calc(100% - 8px),#000 calc(100% - 7px));}
+  .ring-val{font-size:12px;font-weight:700;position:relative;z-index:2;}
+  .ring-label{font-size:10.5px;color:var(--fog);text-transform:uppercase;letter-spacing:1px;margin-top:2px;}
+  .ring-sub{font-size:10px;color:var(--fog-dim);margin-top:1px;}
+  .result-box{background:var(--panel-2);border:1px solid var(--signal-dim);border-radius:12px;padding:16px;margin-top:14px;}
+  .result-headline{font-size:28px;font-weight:700;color:var(--signal);line-height:1;}
+  .result-sub{font-size:12.5px;color:var(--fog);margin-top:4px;}
+  .macro-strip{display:flex;gap:14px;margin-top:14px;}
+  .macro-cell{flex:1;text-align:center;}
+  .macro-cell .n{font-size:16px;font-weight:700;}
+  .macro-cell .l{font-size:10px;color:var(--fog-dim);text-transform:uppercase;letter-spacing:0.8px;margin-top:2px;}
+  .lb-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);}
+  .lb-row:last-child{border-bottom:none;}
+  .lb-rank{font-size:13px;color:var(--fog-dim);width:22px;}
+  .lb-rank.gold{color:#FFD166;} .lb-rank.silver{color:#C9CFDA;} .lb-rank.bronze{color:#D89B6C;}
+  .lb-name{flex:1;font-size:13.5px;font-weight:600;}
+  .lb-name.me{color:var(--signal);}
+  .lb-score{font-size:15px;font-weight:700;color:var(--mint);}
+  .hint{font-size:11.5px;color:var(--fog-dim);margin-top:8px;line-height:1.5;}
+  .add-row{display:flex;gap:8px;margin-top:10px;}
+  .add-row input{flex:1;}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--paper);color:var(--ink);padding:11px 18px;border-radius:24px;font-size:13px;font-weight:600;z-index:100;opacity:0;pointer-events:none;transition:opacity .25s;}
+  .toast.show{opacity:1;}
+  .auth-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+  .auth-card{max-width:380px;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:28px 24px;}
+  .auth-mark{width:52px;height:52px;border-radius:14px;margin:0 auto 16px;background:linear-gradient(135deg,var(--signal),var(--mint));display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--ink);font-size:22px;}
+  .auth-title{font-weight:700;font-size:19px;margin-bottom:6px;text-align:center;}
+  .auth-sub{font-size:13px;color:var(--fog);line-height:1.5;margin-bottom:20px;text-align:center;}
+  .agree-row{display:flex;align-items:flex-start;gap:10px;margin:14px 0;font-size:12px;color:var(--fog);}
+  .agree-row input{width:auto;margin-top:2px;}
+  .agree-row a{color:var(--signal);}
+  .auth-toggle{text-align:center;margin-top:14px;font-size:12.5px;color:var(--fog);}
+  .auth-toggle a{color:var(--signal);cursor:pointer;text-decoration:underline;}
+  .auth-error{color:var(--danger);font-size:12.5px;margin-top:8px;text-align:center;}
+  .disclaimer-footer{text-align:center;padding:20px 18px 0;font-size:11px;color:var(--fog-dim);line-height:1.6;}
+  .disclaimer-footer a{color:var(--fog);}
+  ::-webkit-scrollbar{height:0;width:6px;} ::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px;}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   CONFIG — paste your own Supabase project values here
+   Get these from: Supabase Dashboard → Project Settings → API
+   ============================================================ */
+const SUPABASE_URL = "https://ylpjxopozaoukscimcuu.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_zFadyxaU05CDefBzIpcg9A_7TlhYemv";
+
+const sb = (SUPABASE_URL.startsWith("http")) ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+// Bump this any time terms.html or privacy.html materially change.
+// Existing users are NOT re-prompted unless you add logic to check it against their stored version.
+const CURRENT_TERMS_VERSION = "2026-07-07";
+
+const DEFAULT_GOALS = {
+  calories: 2400, protein: 160, carbs: 260, fat: 75, water_oz: 100,
+  micros: {
+    "Vitamin C (mg)": 90, "Vitamin D (mcg)": 20, "Calcium (mg)": 1300,
+    "Iron (mg)": 18, "Potassium (mg)": 3400, "Magnesium (mg)": 400,
+    "Zinc (mg)": 11, "Vitamin B12 (mcg)": 2.4
+  },
+  supplements: [{name:"Multivitamin", dose:"1 tablet"}, {name:"Vitamin D3", dose:"2000 IU"}]
+};
+
+let state = {
+  screen: 'loading', // loading | auth | app
+  authMode: 'signin', // signin | signup
+  session: null,
+  profile: null,
+  goals: null,
+  tab: 'log',
+  today: dateKey(new Date()),
+  log: null,
+};
+
+function dateKey(d){ return d.toISOString().slice(0,10); }
+function todayNice(){ return new Date().toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}); }
+function uid(){ return Math.random().toString(36).slice(2,9); }
+function escapeHtml(str){ if(str==null) return ''; return String(str).replace(/[&<>"']/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
+function el(html){ const d=document.createElement('div'); d.innerHTML=html; return d.firstElementChild; }
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(window.__t); window.__t=setTimeout(()=>t.classList.remove('show'),2200); }
+
+/* ---------------- Data layer (Supabase) ---------------- */
+async function fetchProfile(userId){
+  const { data } = await sb.from('profiles').select('*').eq('id', userId).maybeSingle();
+  return data;
+}
+async function createProfile(userId, username){
+  const { error } = await sb.from('profiles').insert({
+    id:userId, username,
+    terms_version: CURRENT_TERMS_VERSION,
+    terms_accepted_at: new Date().toISOString()
+  });
+  if(error) throw error;
+}
+async function recordTermsAcceptance(userId){
+  await sb.from('profiles').update({
+    terms_version: CURRENT_TERMS_VERSION, terms_accepted_at: new Date().toISOString()
+  }).eq('id', userId);
+}
+async function fetchGoals(userId){
+  const { data } = await sb.from('goals').select('*').eq('user_id', userId).maybeSingle();
+  if(!data){
+    const g = { user_id:userId, ...DEFAULT_GOALS };
+    await sb.from('goals').upsert(g);
+    return g;
+  }
+  return data;
+}
+async function saveGoalsRemote(){
+  const g = state.goals;
+  await sb.from('goals').upsert({
+    user_id: state.session.user.id, calories:g.calories, protein:g.protein, carbs:g.carbs, fat:g.fat,
+    water_oz:g.water_oz, micros:g.micros, supplements:g.supplements, updated_at:new Date().toISOString()
+  });
+}
+async function fetchDay(userId, dateStr){
+  const { data } = await sb.from('logs').select('*').eq('user_id', userId).eq('log_date', dateStr).maybeSingle();
+  return data || { foods:[], water_oz:0, supplements:[] };
+}
+async function saveDayRemote(){
+  await sb.from('logs').upsert({
+    user_id: state.session.user.id, log_date: state.today,
+    foods: state.log.foods, water_oz: state.log.water_oz, supplements: state.log.supplements,
+    updated_at: new Date().toISOString()
+  }, { onConflict: 'user_id,log_date' });
+}
+function closeness(actual, target){ if(!target||target<=0) return null; const d=Math.abs(actual-target)/target*100; return Math.max(0,100-d*1.6); }
+function capPct(actual, target){ if(!target||target<=0) return null; return Math.min(100,(actual/target)*100); }
+function computeTotals(day){
+  const t={calories:0,protein:0,carbs:0,fat:0,micros:{}};
+  Object.keys(state.goals.micros||{}).forEach(m=>t.micros[m]=0);
+  (day.foods||[]).forEach(f=>{
+    t.calories+=f.calories||0; t.protein+=f.protein_g||0; t.carbs+=f.carbs_g||0; t.fat+=f.fat_g||0;
+    if(f.micros) Object.keys(f.micros).forEach(m=>{ if(t.micros[m]!=null) t.micros[m]+=f.micros[m]||0; });
+  });
+  return t;
+}
+function computeDayScore(day){
+  const g=state.goals, t=computeTotals(day), parts=[];
+  const cCal=closeness(t.calories,g.calories); if(cCal!=null) parts.push(cCal);
+  const macroScores=[closeness(t.protein,g.protein),closeness(t.carbs,g.carbs),closeness(t.fat,g.fat)].filter(x=>x!=null);
+  if(macroScores.length) parts.push(macroScores.reduce((a,b)=>a+b,0)/macroScores.length);
+  const wScore=capPct(day.water_oz||0,g.water_oz); if(wScore!=null) parts.push(wScore);
+  if(g.supplements && g.supplements.length){
+    const taken=(day.supplements||[]).filter(s=>s.taken).length;
+    parts.push(Math.min(100,(taken/g.supplements.length)*100));
+  }
+  const mk=Object.keys(g.micros||{});
+  if(mk.length){
+    const ms=mk.map(m=>capPct(t.micros[m]||0,g.micros[m])).filter(x=>x!=null);
+    if(ms.length) parts.push(ms.reduce((a,b)=>a+b,0)/ms.length);
+  }
+  return parts.length ? Math.round(parts.reduce((a,b)=>a+b,0)/parts.length) : 0;
+}
+async function pushToLeaderboard(){
+  const score = computeDayScore(state.log);
+  await sb.from('leaderboard').upsert({
+    user_id: state.session.user.id, log_date: state.today, username: state.profile.username, score,
+    updated_at: new Date().toISOString()
+  }, { onConflict:'user_id,log_date' });
+}
+
+async function computeStreak(userId){
+  const { data } = await sb.from('logs').select('log_date').eq('user_id', userId).order('log_date', { ascending:false }).limit(400);
+  if(!data || !data.length) return 0;
+  const dates = new Set(data.map(d=>d.log_date));
+  let streak = 0;
+  let checkDate = new Date();
+  if(!dates.has(dateKey(checkDate))) checkDate.setDate(checkDate.getDate()-1); // grace: today not logged yet
+  while(dates.has(dateKey(checkDate))){
+    streak++;
+    checkDate.setDate(checkDate.getDate()-1);
+  }
+  return streak;
+}
+// Free USDA food database search — no cost, no account required to start.
+// DEMO_KEY works out of the box but is rate-limited across everyone using it.
+// For a smoother experience, get your own free key (30 seconds, no card required)
+// at https://fdc.nal.usda.gov/api-key-signup and paste it below.
+const USDA_API_KEY = "DEMO_KEY";
+
+async function searchFoodDB(query){
+  const url = `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${USDA_API_KEY}&query=${encodeURIComponent(query)}&pageSize=8`;
+  const resp = await fetch(url);
+  if(!resp.ok) throw new Error('Search failed (rate limited? get your own free key — see comment above USDA_API_KEY)');
+  const data = await resp.json();
+  return (data.foods||[]).map(food=>{
+    const nutrients = food.foodNutrients || [];
+    const find = (needle) => { const n = nutrients.find(x=>(x.nutrientName||'').toLowerCase().includes(needle)); return n ? n.value : 0; };
+    return {
+      name: food.description,
+      brand: food.brandOwner || food.brandName || '',
+      per100g: {
+        calories: find('energy'),
+        protein: find('protein'),
+        fat: find('total lipid'),
+        carbs: find('carbohydrate')
+      }
+    };
+  });
+}
+
+async function handleSignUp(email, password, username){
+  if(!SUPABASE_URL.startsWith("http")){ toast("Supabase isn't configured yet — see SETUP.md"); return; }
+  const { data, error } = await sb.auth.signUp({ email, password });
+  if(error) throw error;
+  if(data.session){
+    await createProfile(data.user.id, username);
+    await initSession(data.session);
+  } else {
+    toast("Check your email to confirm your account, then sign in.");
+    state.authMode = 'signin';
+    render();
+  }
+}
+async function handleSignIn(email, password){
+  if(!SUPABASE_URL.startsWith("http")){ toast("Supabase isn't configured yet — see SETUP.md"); return; }
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if(error) throw error;
+  await initSession(data.session);
+}
+async function handleSignOut(){
+  await sb.auth.signOut();
+  state.session = null; state.profile = null; state.goals = null; state.log = null;
+  state.screen = 'auth'; state.authMode = 'signin';
+  render();
+}
+async function initSession(session){
+  state.session = session;
+  state.profile = await fetchProfile(session.user.id);
+  state.goals = await fetchGoals(session.user.id);
+  state.log = await fetchDay(session.user.id, state.today);
+  if(state.profile && state.profile.terms_version !== CURRENT_TERMS_VERSION){
+    state.screen = 'reconsent';
+    render();
+    return;
+  }
+  state.screen = 'app';
+  render();
+}
+
+/* ---------------- Rendering: Auth screens ---------------- */
+function renderAuth(){
+  const wrap = el(`<div class="auth-screen"></div>`);
+  const isSignup = state.authMode === 'signup';
+  const card = el(`
+    <div class="auth-card">
+      <div class="auth-mark">FL</div>
+      <div class="auth-title">${isSignup ? 'Create your account' : 'Welcome back'}</div>
+      <div class="auth-sub">${isSignup ? 'Your log stays private to you — only your username and daily score show up on the leaderboard.' : 'Sign in to your private ledger.'}</div>
+      ${isSignup ? `<div class="field"><label>Username (public on leaderboard)</label><input id="a-username" type="text" placeholder="e.g. connor_w"></div>` : ''}
+      <div class="field"><label>Email</label><input id="a-email" type="email" placeholder="you@example.com"></div>
+      <div class="field"><label>Password</label><input id="a-password" type="password" placeholder="At least 6 characters"></div>
+      ${isSignup ? `
+      <div class="agree-row">
+        <input type="checkbox" id="a-agree">
+        <label style="margin:0;text-transform:none;font-weight:400;letter-spacing:normal;">I agree to the <a href="terms.html" target="_blank">Terms of Service</a> and <a href="privacy.html" target="_blank">Privacy Policy</a>, and understand nutrition figures are estimates, not medical advice.</label>
+      </div>` : ''}
+      <button class="btn full" id="a-submit">${isSignup ? 'Sign up' : 'Sign in'}</button>
+      <div id="a-error" class="auth-error"></div>
+      <div class="auth-toggle">
+        ${isSignup ? 'Already have an account? <a id="a-toggle">Sign in</a>' : 'New here? <a id="a-toggle">Create an account</a>'}
+      </div>
+    </div>
+  `);
+  card.querySelector('#a-toggle').onclick = ()=>{ state.authMode = isSignup ? 'signin' : 'signup'; render(); };
+  card.querySelector('#a-submit').onclick = async ()=>{
+    const email = card.querySelector('#a-email').value.trim();
+    const password = card.querySelector('#a-password').value;
+    const errBox = card.querySelector('#a-error');
+    errBox.textContent = '';
+    if(!email || !password){ errBox.textContent = 'Enter an email and password.'; return; }
+    const btn = card.querySelector('#a-submit');
+    btn.disabled = true; btn.textContent = 'Working...';
+    try{
+      if(isSignup){
+        const username = card.querySelector('#a-username').value.trim();
+        const agreed = card.querySelector('#a-agree').checked;
+        if(!username){ throw new Error('Choose a username.'); }
+        if(!agreed){ throw new Error('You need to agree to the Terms and Privacy Policy to continue.'); }
+        await handleSignUp(email, password, username);
+      } else {
+        await handleSignIn(email, password);
+      }
+    }catch(e){
+      errBox.textContent = e.message || 'Something went wrong.';
+      btn.disabled = false; btn.textContent = isSignup ? 'Sign up' : 'Sign in';
+    }
+  };
+  wrap.appendChild(card);
+  return wrap;
+}
+
+/* ---------------- Rendering: main app (same shape as the Claude-artifact version) ---------------- */
+function renderReconsent(){
+  const wrap = el(`<div class="auth-screen"></div>`);
+  const card = el(`
+    <div class="auth-card">
+      <div class="auth-mark">FL</div>
+      <div class="auth-title">Our terms have been updated</div>
+      <div class="auth-sub">Please review the current <a href="terms.html" target="_blank" style="color:var(--signal);">Terms of Service</a> and <a href="privacy.html" target="_blank" style="color:var(--signal);">Privacy Policy</a> before continuing.</div>
+      <div class="agree-row">
+        <input type="checkbox" id="rc-agree">
+        <label style="margin:0;text-transform:none;font-weight:400;letter-spacing:normal;">I agree to the updated Terms of Service and Privacy Policy.</label>
+      </div>
+      <button class="btn full" id="rc-submit">Continue</button>
+    </div>
+  `);
+  card.querySelector('#rc-submit').onclick = async ()=>{
+    if(!card.querySelector('#rc-agree').checked){ toast('Please check the box to continue.'); return; }
+    await recordTermsAcceptance(state.session.user.id);
+    state.profile.terms_version = CURRENT_TERMS_VERSION;
+    state.screen = 'app';
+    render();
+  };
+  wrap.appendChild(card);
+  return wrap;
+}
+
+function render(){
+  const app = document.getElementById('app');
+  app.innerHTML = '';
+  if(state.screen === 'loading'){
+    app.appendChild(el(`<div style="padding:60px 20px;text-align:center;color:var(--fog);">Loading Fuel Ledger...</div>`));
+    return;
+  }
+  if(state.screen === 'reconsent'){
+    app.appendChild(renderReconsent());
+    return;
+  }
+  if(state.screen === 'auth' || !state.session){
+    app.appendChild(renderAuth());
+    return;
+  }
+  app.innerHTML = `
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-mark">FL</div>
+        <div><div class="brand-name">Fuel Ledger</div><div class="brand-sub">private log</div></div>
+      </div>
+      <div class="date-pill">${todayNice()}</div>
+    </div>
+    <div class="who-banner">
+      <div>Logging as <span class="who-name">@${escapeHtml(state.profile.username)}</span></div>
+      <button id="signout-btn">sign out</button>
+    </div>
+    <div class="nav">
+      ${navBtn('log','Log')}${navBtn('reverse','Reverse')}${navBtn('leaderboard','Leaderboard')}${navBtn('goals','Goals')}
+    </div>
+    <div class="view" id="view"></div>
+    <div class="disclaimer-footer">Nutrition figures are estimates, not medical advice. See <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a>.</div>
+  `;
+  document.querySelectorAll('.nav button').forEach(b=>{ b.onclick=()=>{ state.tab=b.dataset.tab; render(); }; });
+  document.getElementById('signout-btn').onclick = handleSignOut;
+  const view = document.getElementById('view');
+  if(state.tab==='log') view.appendChild(renderLog());
+  if(state.tab==='reverse') view.appendChild(renderReverse());
+  if(state.tab==='leaderboard') view.appendChild(renderLeaderboard());
+  if(state.tab==='goals') view.appendChild(renderGoals());
+}
+function navBtn(tab,label){ return `<button data-tab="${tab}" class="${state.tab===tab?'active':''}">${label}</button>`; }
+
+function ringCard(label,val,target,colorVar,sub){
+  const pct = target ? Math.min(100,(val/target*100)) : 0;
+  const colorValue = colorVar.startsWith('--') ? `var(${colorVar})` : colorVar;
+  return `<div class="ring-card"><div class="ring" style="--pct:${pct};--ring-color:${colorValue};"><div class="ring-val">${Math.round(pct)}%</div></div><div class="ring-label">${label}</div><div class="ring-sub">${sub}</div></div>`;
+}
+
+function renderLog(){
+  const wrap = el(`<div></div>`);
+  const totals = computeTotals(state.log);
+  const g = state.goals;
+  const score = computeDayScore(state.log);
+
+  const streakBadge = el(`<div class="card" style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;">
+    <div style="font-size:13.5px;font-weight:700;">🔥 <span id="streak-num">–</span> day streak</div>
+    <div class="hint" style="margin:0;">logging at least one item counts the day</div>
+  </div>`);
+  wrap.appendChild(streakBadge);
+  computeStreak(state.session.user.id).then(s=>{
+    const n = streakBadge.querySelector('#streak-num');
+    if(n) n.textContent = s;
+  });
+
+  wrap.appendChild(el(`<div class="ring-row">
+    ${ringCard('Score',score,100,'--mint',score+'/100')}
+    ${ringCard('Cals',Math.round(totals.calories),g.calories,'--ember',Math.round(totals.calories)+' of '+g.calories)}
+    ${ringCard('Protein',Math.round(totals.protein),g.protein,'--signal',Math.round(totals.protein)+'g of '+g.protein+'g')}
+    ${ringCard('Carbs',Math.round(totals.carbs),g.carbs,'--violet',Math.round(totals.carbs)+'g of '+g.carbs+'g')}
+    ${ringCard('Fat',Math.round(totals.fat),g.fat,'#FFD166',Math.round(totals.fat)+'g of '+g.fat+'g')}
+    ${ringCard('Water',state.log.water_oz||0,g.water_oz,'--signal',(state.log.water_oz||0)+' of '+g.water_oz+'oz')}
+  </div>`));
+
+  const searchCard = el(`
+    <div class="card">
+      <div class="card-title">Search food database <span class="tag">free · USDA</span></div>
+      <div class="row">
+        <input id="s-query" placeholder="e.g. chicken breast, banana, cheddar cheese">
+        <button class="btn" id="s-go" style="flex:0 0 auto;">Search</button>
+      </div>
+      <div id="s-results"></div>
+      <div class="hint">Pulls real per-100g nutrition from the free USDA FoodData Central database, then fills in the fields below once you say how many grams you had — review and adjust before adding.</div>
+    </div>
+  `);
+  const runSearch = async ()=>{
+    const q = searchCard.querySelector('#s-query').value.trim();
+    if(!q) return;
+    const resultsBox = searchCard.querySelector('#s-results');
+    resultsBox.innerHTML = `<div class="empty">Searching...</div>`;
+    try{
+      const results = await searchFoodDB(q);
+      if(!results.length){ resultsBox.innerHTML = `<div class="empty">No matches — try a simpler term.</div>`; return; }
+      resultsBox.innerHTML = '';
+      results.slice(0,6).forEach(r=>{
+        const row = el(`<div class="entry" style="cursor:pointer;">
+          <div><div class="entry-name">${escapeHtml(r.name)}</div><div class="entry-meta">${escapeHtml(r.brand)} ${Math.round(r.per100g.calories)} kcal / 100g</div></div>
+          <button class="btn small">Use</button>
+        </div>`);
+        row.querySelector('button').onclick = ()=>{
+          const gramsStr = window.prompt(`How many grams of "${r.name}" did you have?`, '100');
+          const grams = parseFloat(gramsStr);
+          if(!grams) return;
+          const mult = grams/100;
+          foodCard.querySelector('#f-name').value = r.name + ' (' + grams + 'g)';
+          foodCard.querySelector('#f-cal').value = Math.round(r.per100g.calories*mult);
+          foodCard.querySelector('#f-p').value = Math.round(r.per100g.protein*mult);
+          foodCard.querySelector('#f-c').value = Math.round(r.per100g.carbs*mult);
+          foodCard.querySelector('#f-f').value = Math.round(r.per100g.fat*mult);
+          toast('Filled in below — hit "Add to log" to confirm');
+          foodCard.scrollIntoView({behavior:'smooth', block:'center'});
+        };
+        resultsBox.appendChild(row);
+      });
+    }catch(e){
+      resultsBox.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`;
+    }
+  };
+  searchCard.querySelector('#s-go').onclick = runSearch;
+  searchCard.querySelector('#s-query').addEventListener('keydown', e=>{ if(e.key==='Enter') runSearch(); });
+  wrap.appendChild(searchCard);
+
+  const foodCard = el(`
+    <div class="card">
+      <div class="card-title">Log food <span class="tag">manual or from search above</span></div>
+      <div class="field"><label>Food name</label><input id="f-name" placeholder="e.g. Grilled chicken bowl"></div>
+      <div class="row">
+        <div class="field"><label>Calories</label><input id="f-cal" type="number"></div>
+        <div class="field"><label>Protein g</label><input id="f-p" type="number"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Carbs g</label><input id="f-c" type="number"></div>
+        <div class="field"><label>Fat g</label><input id="f-f" type="number"></div>
+      </div>
+      <button class="btn full" id="f-add">Add to log</button>
+      <div class="hint">Use the free search above to auto-fill these, or type your own numbers from a nutrition label.</div>
+    </div>
+  `);
+  foodCard.querySelector('#f-add').onclick = async ()=>{
+    const name = foodCard.querySelector('#f-name').value.trim();
+    const cal = parseFloat(foodCard.querySelector('#f-cal').value)||0;
+    const p = parseFloat(foodCard.querySelector('#f-p').value)||0;
+    const c = parseFloat(foodCard.querySelector('#f-c').value)||0;
+    const f = parseFloat(foodCard.querySelector('#f-f').value)||0;
+    if(!name){ toast('Give it a name.'); return; }
+    state.log.foods.push({ id:uid(), name, calories:cal, protein_g:p, carbs_g:c, fat_g:f, micros:{}, time:Date.now() });
+    await saveDayRemote(); await pushToLeaderboard();
+    toast('Logged: '+name); render();
+  };
+  wrap.appendChild(foodCard);
+
+  const listCard = el(`<div class="card"><div class="card-title">Today's food <span class="tag">${state.log.foods.length} items</span></div><div id="food-list"></div></div>`);
+  const listEl = listCard.querySelector('#food-list');
+  if(!state.log.foods.length){ listEl.appendChild(el(`<div class="empty">Nothing logged yet today.</div>`)); }
+  else {
+    state.log.foods.slice().reverse().forEach(f=>{
+      const row = el(`<div class="entry"><div><div class="entry-name">${escapeHtml(f.name)}</div><div class="entry-meta">P ${Math.round(f.protein_g)}g · C ${Math.round(f.carbs_g)}g · F ${Math.round(f.fat_g)}g</div></div><div style="display:flex;align-items:center;"><div class="entry-cals">${Math.round(f.calories)}</div><button class="del-btn">✕</button></div></div>`);
+      row.querySelector('.del-btn').onclick = async ()=>{
+        state.log.foods = state.log.foods.filter(x=>x.id!==f.id);
+        await saveDayRemote(); await pushToLeaderboard(); render();
+      };
+      listEl.appendChild(row);
+    });
+  }
+  wrap.appendChild(listCard);
+
+  const waterCard = el(`<div class="card"><div class="card-title">Water <span class="tag">${state.log.water_oz||0} / ${g.water_oz} oz</span></div>
+    <div class="water-row"><div class="water-chip" data-oz="8">+8oz cup</div><div class="water-chip" data-oz="16">+16oz bottle</div><div class="water-chip" data-oz="32">+32oz bottle</div></div>
+    <div class="row"><input id="water-custom" type="number" placeholder="Custom oz"><button class="btn" id="water-add" style="flex:0 0 auto;">Add</button></div></div>`);
+  waterCard.querySelectorAll('.water-chip').forEach(chip=>{
+    chip.onclick = async ()=>{ state.log.water_oz=(state.log.water_oz||0)+parseInt(chip.dataset.oz); await saveDayRemote(); await pushToLeaderboard(); render(); };
+  });
+  waterCard.querySelector('#water-add').onclick = async ()=>{
+    const v = parseFloat(waterCard.querySelector('#water-custom').value); if(!v) return;
+    state.log.water_oz=(state.log.water_oz||0)+v; await saveDayRemote(); await pushToLeaderboard(); render();
+  };
+  wrap.appendChild(waterCard);
+
+  const suppCard = el(`<div class="card"><div class="card-title">Supplements</div><div id="supp-list"></div></div>`);
+  const suppList = suppCard.querySelector('#supp-list');
+  if(!g.supplements.length){ suppList.appendChild(el(`<div class="empty">Add supplements in the Goals tab.</div>`)); }
+  else {
+    g.supplements.forEach(s=>{
+      const taken = (state.log.supplements||[]).find(x=>x.name===s.name)?.taken;
+      const row = el(`<div class="supp-row"><div class="check ${taken?'on':''}">${taken?'✓':''}</div><div class="supp-name">${escapeHtml(s.name)}</div><div class="supp-dose">${escapeHtml(s.dose||'')}</div></div>`);
+      row.querySelector('.check').onclick = async ()=>{
+        let arr = state.log.supplements || [];
+        const idx = arr.findIndex(x=>x.name===s.name);
+        if(idx>=0){ arr[idx].taken = !arr[idx].taken; } else { arr.push({name:s.name, taken:true}); }
+        state.log.supplements = arr;
+        await saveDayRemote(); await pushToLeaderboard(); render();
+      };
+      suppList.appendChild(row);
+    });
+  }
+  wrap.appendChild(suppCard);
+  return wrap;
+}
+
+function renderReverse(){
+  const wrap = el(`
+    <div>
+      <div class="card">
+        <div class="card-title">Reverse portion calculator <span class="tag">free · USDA-assisted</span></div>
+        <div class="field"><label>Calories you want from this food</label><input id="r-target" type="number" placeholder="e.g. 500"></div>
+        <div class="row">
+          <div class="field" style="flex:2;"><label>Food name</label><input id="r-food" placeholder="e.g. Grilled chicken breast"></div>
+          <button class="btn" id="r-search" style="flex:0 0 auto;align-self:flex-end;margin-bottom:12px;">Look up</button>
+        </div>
+        <div class="hint" style="margin-bottom:12px;">Hit "Look up" to auto-fill per-100g values from the free USDA database, or type your own from a label.</div>
+        <div class="row">
+          <div class="field"><label>Cal / 100g</label><input id="r-cal100" type="number"></div>
+          <div class="field"><label>Protein g / 100g</label><input id="r-p100" type="number"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Carbs g / 100g</label><input id="r-c100" type="number"></div>
+          <div class="field"><label>Fat g / 100g</label><input id="r-f100" type="number"></div>
+        </div>
+        <button class="btn full" id="r-calc">Calculate portion</button>
+      </div>
+      <div id="r-result"></div>
+    </div>
+  `);
+  wrap.querySelector('#r-search').onclick = async ()=>{
+    const q = wrap.querySelector('#r-food').value.trim();
+    if(!q){ toast('Type a food name first.'); return; }
+    const btn = wrap.querySelector('#r-search');
+    btn.disabled = true; btn.textContent = '...';
+    try{
+      const results = await searchFoodDB(q);
+      if(!results.length){ toast('No match — try a simpler term or type values manually.'); }
+      else{
+        const r = results[0];
+        wrap.querySelector('#r-cal100').value = Math.round(r.per100g.calories);
+        wrap.querySelector('#r-p100').value = Math.round(r.per100g.protein);
+        wrap.querySelector('#r-c100').value = Math.round(r.per100g.carbs);
+        wrap.querySelector('#r-f100').value = Math.round(r.per100g.fat);
+        toast('Filled from: '+r.name);
+      }
+    }catch(e){ toast(e.message); }
+    btn.disabled = false; btn.textContent = 'Look up';
+  };
+  wrap.querySelector('#r-calc').onclick = async ()=>{
+    const target = parseFloat(wrap.querySelector('#r-target').value);
+    const food = wrap.querySelector('#r-food').value.trim();
+    const cal100 = parseFloat(wrap.querySelector('#r-cal100').value);
+    const p100 = parseFloat(wrap.querySelector('#r-p100').value)||0;
+    const c100 = parseFloat(wrap.querySelector('#r-c100').value)||0;
+    const f100 = parseFloat(wrap.querySelector('#r-f100').value)||0;
+    if(!target || !food || !cal100){ toast('Fill in the target calories, food name, and cal/100g at least.'); return; }
+    const grams = Math.round(target / cal100 * 100);
+    const protein = Math.round(p100/100*grams), carbs = Math.round(c100/100*grams), fat = Math.round(f100/100*grams);
+    const resDiv = wrap.querySelector('#r-result');
+    resDiv.innerHTML = '';
+    resDiv.appendChild(el(`
+      <div class="result-box">
+        <div class="result-headline">${grams}g</div>
+        <div class="result-sub">of ${escapeHtml(food)} ≈ ${target} kcal</div>
+        <div class="macro-strip">
+          <div class="macro-cell"><div class="n">${protein}g</div><div class="l">Protein</div></div>
+          <div class="macro-cell"><div class="n">${carbs}g</div><div class="l">Carbs</div></div>
+          <div class="macro-cell"><div class="n">${fat}g</div><div class="l">Fat</div></div>
+        </div>
+      </div>
+    `));
+    const addBtn = el(`<button class="btn full" style="margin-top:12px;">Add this to today's log</button>`);
+    addBtn.onclick = async ()=>{
+      state.log.foods.push({ id:uid(), name:food+' ('+grams+'g)', calories:target, protein_g:protein, carbs_g:carbs, fat_g:fat, micros:{}, time:Date.now() });
+      await saveDayRemote(); await pushToLeaderboard();
+      toast('Added to log'); state.tab='log'; render();
+    };
+    resDiv.appendChild(addBtn);
+  };
+  return wrap;
+}
+
+function renderLeaderboard(){
+  const wrap = el(`<div><div class="card"><div class="card-title">Leaderboard <span class="tag">public</span></div><div id="lb-body"><div class="empty">Loading...</div></div>
+    <div class="hint">Score blends how close each person lands to their own calorie, macro, water, supplement, and micronutrient goals. Usernames and scores here are visible to any signed-in user.</div></div></div>`);
+  loadLeaderboard(wrap);
+  return wrap;
+}
+async function loadLeaderboard(container){
+  const body = container.querySelector('#lb-body');
+  try{
+    const { data, error } = await sb.from('leaderboard').select('*').eq('log_date', state.today).order('score', { ascending:false });
+    if(error) throw error;
+    if(!data || !data.length){ body.innerHTML = `<div class="empty">No scores yet today.</div>`; return; }
+    body.innerHTML = '';
+    data.forEach((e,i)=>{
+      const rankClass = i===0?'gold':i===1?'silver':i===2?'bronze':'';
+      const isMe = state.session && e.user_id === state.session.user.id;
+      body.appendChild(el(`<div class="lb-row"><div class="lb-rank ${rankClass}">${i+1}</div><div class="lb-name ${isMe?'me':''}">${escapeHtml(e.username)}${isMe?' (you)':''}</div><div class="lb-score">${e.score}</div></div>`));
+    });
+  }catch(e){ body.innerHTML = `<div class="empty">Couldn't load the leaderboard.</div>`; }
+}
+
+function computeNutritionTargets(inputs){
+  const { gender, age, heightIn, weightLb, activity, goal, rateLbWk } = inputs;
+  const kg = weightLb * 0.453592;
+  const cm = heightIn * 2.54;
+  let bmr = gender === 'male'
+    ? 10*kg + 6.25*cm - 5*age + 5
+    : 10*kg + 6.25*cm - 5*age - 161;
+  const activityMult = { sedentary:1.2, light:1.375, moderate:1.55, very:1.725, extreme:1.9 }[activity] || 1.2;
+  const tdee = bmr * activityMult;
+  const rate = rateLbWk || 0;
+  const dailyAdjust = rate * 500; // ~500 kcal/day per lb/week of change, standard estimate
+  let calories = tdee;
+  if(goal === 'lose') calories = tdee - dailyAdjust;
+  if(goal === 'gain') calories = tdee + dailyAdjust;
+  calories = Math.max(1200, Math.round(calories));
+
+  const protein = Math.round(weightLb * 0.9);
+  const fat = Math.round((calories * 0.27) / 9);
+  const carbsCals = Math.max(0, calories - (protein*4) - (fat*9));
+  const carbs = Math.round(carbsCals / 4);
+  const fiber = Math.round((calories/1000) * 14);
+  const sodium = 2300;
+  const addedSugar = gender === 'male' ? 36 : 25;
+  const activityWaterBump = (activity==='very'||activity==='extreme') ? 16 : 0;
+  const waterOz = Math.round(weightLb/2) + activityWaterBump;
+
+  return { bmr:Math.round(bmr), tdee:Math.round(tdee), calories, protein, fat, carbs, fiber, sodium, addedSugar, waterOz };
+}
+
+function renderCalculatorCard(){
+  const card = el(`
+    <div class="card">
+      <div class="card-title">Daily nutrition calculator <span class="tag">Mifflin-St Jeor</span></div>
+      <div class="row">
+        <div class="field"><label>Gender</label><select id="c-gender"><option value="male">Male</option><option value="female">Female</option></select></div>
+        <div class="field"><label>Age</label><input id="c-age" type="number" placeholder="years"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Height (in)</label><input id="c-height" type="number" placeholder="e.g. 70"></div>
+        <div class="field"><label>Weight (lb)</label><input id="c-weight" type="number" placeholder="e.g. 175"></div>
+      </div>
+      <div class="field">
+        <label>Activity level</label>
+        <select id="c-activity">
+          <option value="sedentary">Sedentary (little/no exercise)</option>
+          <option value="light">Lightly active (1-3 days/wk)</option>
+          <option value="moderate" selected>Moderately active (3-5 days/wk)</option>
+          <option value="very">Very active (6-7 days/wk)</option>
+          <option value="extreme">Extremely active (physical job + training)</option>
+        </select>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Goal</label>
+          <select id="c-goal"><option value="maintain">Maintain weight</option><option value="lose">Lose weight</option><option value="gain">Gain weight</option></select>
+        </div>
+        <div class="field"><label>Rate (lb/week, optional)</label><input id="c-rate" type="number" step="0.25" placeholder="e.g. 1"></div>
+      </div>
+      <button class="btn full" id="c-calc">Calculate</button>
+      <div id="c-result"></div>
+      <div class="hint">Uses the Mifflin-St Jeor equation (the most accurate widely-validated formula for most adults) for BMR, standard activity multipliers for TDEE, and general public-health guidelines (IOM fiber, AHA added sugar, FDA sodium) for the rest. These are estimates and general guidelines, not a substitute for advice from a doctor or dietitian — especially if you have a medical condition or take medication affected by diet.</div>
+    </div>
+  `);
+  card.querySelector('#c-calc').onclick = ()=>{
+    const gender = card.querySelector('#c-gender').value;
+    const age = parseFloat(card.querySelector('#c-age').value);
+    const heightIn = parseFloat(card.querySelector('#c-height').value);
+    const weightLb = parseFloat(card.querySelector('#c-weight').value);
+    const activity = card.querySelector('#c-activity').value;
+    const goal = card.querySelector('#c-goal').value;
+    const rateLbWk = parseFloat(card.querySelector('#c-rate').value) || 0;
+    if(!age || !heightIn || !weightLb){ toast('Fill in age, height, and weight.'); return; }
+    const r = computeNutritionTargets({gender,age,heightIn,weightLb,activity,goal,rateLbWk});
+    const resDiv = card.querySelector('#c-result');
+    resDiv.innerHTML = '';
+    resDiv.appendChild(el(`
+      <div class="result-box">
+        <div class="result-sub">BMR ${r.bmr} kcal · TDEE ${r.tdee} kcal</div>
+        <div class="result-headline">${r.calories}</div>
+        <div class="result-sub">recommended calories/day</div>
+        <div class="macro-strip">
+          <div class="macro-cell"><div class="n">${r.protein}g</div><div class="l">Protein</div></div>
+          <div class="macro-cell"><div class="n">${r.carbs}g</div><div class="l">Carbs</div></div>
+          <div class="macro-cell"><div class="n">${r.fat}g</div><div class="l">Fat</div></div>
+        </div>
+        <div class="macro-strip">
+          <div class="macro-cell"><div class="n">${r.fiber}g</div><div class="l">Fiber</div></div>
+          <div class="macro-cell"><div class="n">${r.sodium}mg</div><div class="l">Sodium max</div></div>
+          <div class="macro-cell"><div class="n">${r.addedSugar}g</div><div class="l">Added sugar max</div></div>
+        </div>
+        <div class="macro-strip">
+          <div class="macro-cell"><div class="n">${r.waterOz}oz</div><div class="l">Water</div></div>
+        </div>
+      </div>
+    `));
+    const applyBtn = el(`<button class="btn full" style="margin-top:12px;">Apply these as my daily targets</button>`);
+    applyBtn.onclick = async ()=>{
+      state.goals.calories = r.calories;
+      state.goals.protein = r.protein;
+      state.goals.carbs = r.carbs;
+      state.goals.fat = r.fat;
+      state.goals.water_oz = r.waterOz;
+      await saveGoalsRemote();
+      await pushToLeaderboard();
+      toast('Targets updated');
+      state.tab = 'goals';
+      render();
+    };
+    resDiv.appendChild(applyBtn);
+  };
+  return card;
+}
+
+function renderGoals(){
+  const g = state.goals;
+  const wrap = el(`<div></div>`);
+  wrap.appendChild(renderCalculatorCard());
+  const goalCard = el(`
+    <div class="card">
+      <div class="card-title">Daily targets</div>
+      <div class="row"><div class="field"><label>Calories</label><input id="g-cal" type="number" value="${g.calories}"></div><div class="field"><label>Water (oz)</label><input id="g-water" type="number" value="${g.water_oz}"></div></div>
+      <div class="row"><div class="field"><label>Protein (g)</label><input id="g-p" type="number" value="${g.protein}"></div><div class="field"><label>Carbs (g)</label><input id="g-c" type="number" value="${g.carbs}"></div><div class="field"><label>Fat (g)</label><input id="g-f" type="number" value="${g.fat}"></div></div>
+      <button class="btn full" id="save-goals">Save targets</button>
+    </div>
+  `);
+  goalCard.querySelector('#save-goals').onclick = async ()=>{
+    g.calories=parseFloat(goalCard.querySelector('#g-cal').value)||g.calories;
+    g.water_oz=parseFloat(goalCard.querySelector('#g-water').value)||g.water_oz;
+    g.protein=parseFloat(goalCard.querySelector('#g-p').value)||g.protein;
+    g.carbs=parseFloat(goalCard.querySelector('#g-c').value)||g.carbs;
+    g.fat=parseFloat(goalCard.querySelector('#g-f').value)||g.fat;
+    await saveGoalsRemote(); await pushToLeaderboard(); toast('Targets saved'); render();
+  };
+  wrap.appendChild(goalCard);
+
+  const microCard = el(`<div class="card"><div class="card-title">Micronutrient targets</div><div id="micro-edit"></div>
+    <div class="add-row"><input id="new-micro-name" placeholder="Name e.g. Folate (mcg)"><input id="new-micro-target" type="number" placeholder="Target" style="max-width:100px;"><button class="btn small" id="add-micro">Add</button></div></div>`);
+  const microEdit = microCard.querySelector('#micro-edit');
+  Object.keys(g.micros||{}).forEach(m=>{
+    const row = el(`<div class="entry"><div class="entry-name">${escapeHtml(m)}</div><div style="display:flex;align-items:center;gap:8px;"><input type="number" value="${g.micros[m]}" style="width:80px;padding:6px 8px;"><button class="del-btn">✕</button></div></div>`);
+    row.querySelector('input').onchange = async (e)=>{ g.micros[m]=parseFloat(e.target.value)||0; await saveGoalsRemote(); };
+    row.querySelector('.del-btn').onclick = async ()=>{ delete g.micros[m]; await saveGoalsRemote(); render(); };
+    microEdit.appendChild(row);
+  });
+  microCard.querySelector('#add-micro').onclick = async ()=>{
+    const name = microCard.querySelector('#new-micro-name').value.trim();
+    const target = parseFloat(microCard.querySelector('#new-micro-target').value);
+    if(!name||!target){ toast('Enter a name and target.'); return; }
+    g.micros[name]=target; await saveGoalsRemote(); toast('Micro added'); render();
+  };
+  wrap.appendChild(microCard);
+
+  const suppCard = el(`<div class="card"><div class="card-title">Supplement list</div><div id="supp-edit"></div>
+    <div class="add-row"><input id="new-supp-name" placeholder="Name e.g. Fish oil"><input id="new-supp-dose" placeholder="Dose e.g. 1000mg" style="max-width:120px;"><button class="btn small" id="add-supp">Add</button></div></div>`);
+  const suppEdit = suppCard.querySelector('#supp-edit');
+  g.supplements.forEach((s,i)=>{
+    const row = el(`<div class="entry"><div><div class="entry-name">${escapeHtml(s.name)}</div><div class="entry-meta">${escapeHtml(s.dose||'')}</div></div><button class="del-btn">✕</button></div>`);
+    row.querySelector('.del-btn').onclick = async ()=>{ g.supplements.splice(i,1); await saveGoalsRemote(); render(); };
+    suppEdit.appendChild(row);
+  });
+  suppCard.querySelector('#add-supp').onclick = async ()=>{
+    const name = suppCard.querySelector('#new-supp-name').value.trim();
+    const dose = suppCard.querySelector('#new-supp-dose').value.trim();
+    if(!name){ toast('Enter a supplement name.'); return; }
+    g.supplements.push({name,dose}); await saveGoalsRemote(); toast('Supplement added'); render();
+  };
+  wrap.appendChild(suppCard);
+  return wrap;
+}
+
+/* ---------------- Init ---------------- */
+async function init(){
+  if(!sb){
+    state.screen = 'auth';
+    render();
+    document.getElementById('app').insertAdjacentHTML('afterbegin', `<div style="background:var(--ember);color:#1a1200;padding:10px 16px;text-align:center;font-size:12.5px;font-weight:600;">⚠ Supabase isn't configured yet. Open SETUP.md and paste your project URL + anon key into index.html.</div>`);
+    return;
+  }
+  const { data } = await sb.auth.getSession();
+  if(data.session){ await initSession(data.session); }
+  else { state.screen = 'auth'; render(); }
+  sb.auth.onAuthStateChange((event, session)=>{
+    if(event === 'SIGNED_OUT'){ state.session=null; state.screen='auth'; render(); }
+  });
+}
+init();
+</script>
+</body>
+</html>
