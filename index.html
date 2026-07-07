@@ -301,7 +301,12 @@ async function initSession(session){
   state.profile = await fetchProfile(session.user.id);
   state.goals = await fetchGoals(session.user.id);
   state.log = await fetchDay(session.user.id, state.today);
-  if(state.profile && state.profile.terms_version !== CURRENT_TERMS_VERSION){
+  if(!state.profile){
+    state.screen = 'needs-profile';
+    render();
+    return;
+  }
+  if(state.profile.terms_version !== CURRENT_TERMS_VERSION){
     state.screen = 'reconsent';
     render();
     return;
@@ -363,6 +368,37 @@ function renderAuth(){
 }
 
 /* ---------------- Rendering: main app (same shape as the Claude-artifact version) ---------------- */
+function renderNeedsProfile(){
+  const wrap = el(`<div class="auth-screen"></div>`);
+  const card = el(`
+    <div class="auth-card">
+      <div class="auth-mark">FL</div>
+      <div class="auth-title">One more step</div>
+      <div class="auth-sub">Your account exists, but we're missing a username for you — pick one to finish setting up your ledger.</div>
+      <div class="field"><label>Username (public on leaderboard)</label><input id="np-username" type="text" placeholder="e.g. connor_w"></div>
+      <button class="btn full" id="np-submit">Finish setup</button>
+      <div id="np-error" class="auth-error"></div>
+    </div>
+  `);
+  card.querySelector('#np-submit').onclick = async ()=>{
+    const username = card.querySelector('#np-username').value.trim();
+    const errBox = card.querySelector('#np-error');
+    errBox.textContent = '';
+    if(!username){ errBox.textContent = 'Enter a username.'; return; }
+    const btn = card.querySelector('#np-submit');
+    btn.disabled = true; btn.textContent = 'Saving...';
+    try{
+      await createProfile(state.session.user.id, username);
+      await initSession(state.session);
+    }catch(e){
+      errBox.textContent = e.message || 'That username might already be taken — try another.';
+      btn.disabled = false; btn.textContent = 'Finish setup';
+    }
+  };
+  wrap.appendChild(card);
+  return wrap;
+}
+
 function renderReconsent(){
   const wrap = el(`<div class="auth-screen"></div>`);
   const card = el(`
@@ -393,6 +429,10 @@ function render(){
   app.innerHTML = '';
   if(state.screen === 'loading'){
     app.appendChild(el(`<div style="padding:60px 20px;text-align:center;color:var(--fog);">Loading Fuel Ledger...</div>`));
+    return;
+  }
+  if(state.screen === 'needs-profile'){
+    app.appendChild(renderNeedsProfile());
     return;
   }
   if(state.screen === 'reconsent'){
