@@ -178,6 +178,12 @@ function uid(){ return Math.random().toString(36).slice(2,9); }
 function escapeHtml(str){ if(str==null) return ''; return String(str).replace(/[&<>"']/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
 function el(html){ const d=document.createElement('div'); d.innerHTML=html; return d.firstElementChild; }
 function round1(n){ return Math.round(n*10)/10; }
+// Parses a form field to a number, but preserves "the user left this blank" as null rather
+// than silently collapsing it to 0 — that distinction is what lets the UI show "N/A" for
+// nutrients a food doesn't report, instead of falsely implying the food has zero of it.
+function parseOrNull(v){ const s=(v==null?'':String(v)).trim(); if(s==='') return null; const n=parseFloat(s); return isNaN(n)?null:n; }
+// Formats a nutrient value for display: "N/A" when not reported, otherwise the rounded number + unit.
+function fmtNutrient(v, unit){ return (v==null) ? 'N/A' : Math.round(v)+(unit||''); }
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(window.__t); window.__t=setTimeout(()=>t.classList.remove('show'),2200); }
 
 /* ---------------- Data layer (Supabase) ---------------- */
@@ -760,20 +766,28 @@ function renderLog(){
           const grams = parseFloat(gramsStr);
           if(!grams) return;
           const mult = grams/100;
-          const scale = (v)=> v==null ? '' : Math.round(v*mult);
+          const scale = (v)=> v==null ? null : Math.round(v*mult);
+          // Setting the field to a distinct "N/A" placeholder (rather than just leaving it blank)
+          // makes it visually clear the source data didn't report this nutrient, vs. the user
+          // simply not having typed anything in yet.
+          const setField = (id, v)=>{
+            const input = foodCard.querySelector(id);
+            if(v==null){ input.value=''; input.placeholder='N/A — not reported'; }
+            else { input.value = v; input.placeholder=''; }
+          };
           foodCard.querySelector('#f-name').value = r.name + ' (' + grams + 'g)';
-          foodCard.querySelector('#f-cal').value = scale(r.per100g.calories);
-          foodCard.querySelector('#f-p').value = scale(r.per100g.protein);
-          foodCard.querySelector('#f-c').value = scale(r.per100g.carbs);
-          foodCard.querySelector('#f-f').value = scale(r.per100g.fat);
-          foodCard.querySelector('#f-fiber').value = scale(r.per100g.fiber);
-          foodCard.querySelector('#f-sugar').value = scale(r.per100g.sugar);
-          foodCard.querySelector('#f-sodium').value = scale(r.per100g.sodium);
-          foodCard.querySelector('#f-satfat').value = scale(r.per100g.sat_fat);
-          foodCard.querySelector('#f-transfat').value = scale(r.per100g.trans_fat);
-          foodCard.querySelector('#f-unsatfat').value = scale(r.per100g.unsat_fat);
-          foodCard.querySelector('#f-addedsugar').value = scale(r.per100g.added_sugar);
-          foodCard.querySelector('#f-chol').value = scale(r.per100g.cholesterol);
+          setField('#f-cal', scale(r.per100g.calories));
+          setField('#f-p', scale(r.per100g.protein));
+          setField('#f-c', scale(r.per100g.carbs));
+          setField('#f-f', scale(r.per100g.fat));
+          setField('#f-fiber', scale(r.per100g.fiber));
+          setField('#f-sugar', scale(r.per100g.sugar));
+          setField('#f-sodium', scale(r.per100g.sodium));
+          setField('#f-satfat', scale(r.per100g.sat_fat));
+          setField('#f-transfat', scale(r.per100g.trans_fat));
+          setField('#f-unsatfat', scale(r.per100g.unsat_fat));
+          setField('#f-addedsugar', scale(r.per100g.added_sugar));
+          setField('#f-chol', scale(r.per100g.cholesterol));
           const scaledMicros = {};
           Object.keys(r.per100g.micros||{}).forEach(k=>{ const v=r.per100g.micros[k]; scaledMicros[k] = v==null ? null : round1(v*mult); });
           lastSearchExtra = scaledMicros;
@@ -827,11 +841,13 @@ function renderLog(){
     const fiber = parseFloat(foodCard.querySelector('#f-fiber').value)||0;
     const sugar = parseFloat(foodCard.querySelector('#f-sugar').value)||0;
     const sodium = parseFloat(foodCard.querySelector('#f-sodium').value)||0;
-    const satFat = parseFloat(foodCard.querySelector('#f-satfat').value)||0;
-    const unsatFat = parseFloat(foodCard.querySelector('#f-unsatfat').value)||0;
-    const transFat = parseFloat(foodCard.querySelector('#f-transfat').value)||0;
-    const addedSugar = parseFloat(foodCard.querySelector('#f-addedsugar').value)||0;
-    const chol = parseFloat(foodCard.querySelector('#f-chol').value)||0;
+    // These five are frequently missing from nutrition labels/USDA data — a blank field means
+    // "not reported", which must stay null (not become 0) so the log can show "N/A" for it.
+    const satFat = parseOrNull(foodCard.querySelector('#f-satfat').value);
+    const unsatFat = parseOrNull(foodCard.querySelector('#f-unsatfat').value);
+    const transFat = parseOrNull(foodCard.querySelector('#f-transfat').value);
+    const addedSugar = parseOrNull(foodCard.querySelector('#f-addedsugar').value);
+    const chol = parseOrNull(foodCard.querySelector('#f-chol').value);
     if(!name){ toast('Give it a name.'); return; }
     state.log.foods.push({
       id:uid(), name, calories:cal, protein_g:p, carbs_g:c, fat_g:f,
@@ -850,7 +866,7 @@ function renderLog(){
   if(!state.log.foods.length){ listEl.appendChild(el(`<div class="empty">Nothing logged yet today.</div>`)); }
   else {
     state.log.foods.slice().reverse().forEach(f=>{
-      const row = el(`<div class="entry"><div><div class="entry-name">${escapeHtml(f.name)}</div><div class="entry-meta">P ${Math.round(f.protein_g)}g · C ${Math.round(f.carbs_g)}g · F ${Math.round(f.fat_g)}g (sat ${Math.round(f.sat_fat_g||0)}g) · Fiber ${Math.round(f.fiber_g||0)}g · Sugar ${Math.round(f.sugar_g||0)}g (added ${Math.round(f.added_sugar_g||0)}g) · Na ${Math.round(f.sodium_mg||0)}mg · Chol ${Math.round(f.cholesterol_mg||0)}mg</div></div><div style="display:flex;align-items:center;"><div class="entry-cals">${Math.round(f.calories)}</div><button class="del-btn">✕</button></div></div>`);
+      const row = el(`<div class="entry"><div><div class="entry-name">${escapeHtml(f.name)}</div><div class="entry-meta">P ${Math.round(f.protein_g)}g · C ${Math.round(f.carbs_g)}g · F ${Math.round(f.fat_g)}g (sat ${fmtNutrient(f.sat_fat_g,'g')}) · Fiber ${Math.round(f.fiber_g||0)}g · Sugar ${Math.round(f.sugar_g||0)}g (added ${fmtNutrient(f.added_sugar_g,'g')}) · Na ${Math.round(f.sodium_mg||0)}mg · Chol ${fmtNutrient(f.cholesterol_mg,'mg')} · Trans ${fmtNutrient(f.trans_fat_g,'g')} · Unsat ${fmtNutrient(f.unsat_fat_g,'g')}</div></div><div style="display:flex;align-items:center;"><div class="entry-cals">${Math.round(f.calories)}</div><button class="del-btn">✕</button></div></div>`);
       row.querySelector('.del-btn').onclick = async ()=>{
         state.log.foods = state.log.foods.filter(x=>x.id!==f.id);
         await saveDayRemote(); await pushToLeaderboard(); render();
