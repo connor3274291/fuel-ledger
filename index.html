@@ -84,6 +84,12 @@
   .lb-name.me{color:var(--signal);}
   .lb-score{font-size:15px;font-weight:700;color:var(--mint);}
   .hint{font-size:11.5px;color:var(--fog-dim);margin-top:8px;line-height:1.5;}
+  .micro-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .micro-item{background:var(--panel-2);border-radius:10px;padding:10px 12px;}
+  .micro-name{font-size:11px;color:var(--fog);text-transform:uppercase;letter-spacing:0.5px;}
+  .micro-bar{height:5px;background:var(--line);border-radius:3px;margin:6px 0 4px;overflow:hidden;}
+  .micro-fill{height:100%;background:var(--violet);border-radius:3px;}
+  .micro-val{font-size:11px;color:var(--fog);}
   .add-row{display:flex;gap:8px;margin-top:10px;}
   .add-row input{flex:1;}
   .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--paper);color:var(--ink);padding:11px 18px;border-radius:24px;font-size:13px;font-weight:600;z-index:100;opacity:0;pointer-events:none;transition:opacity .25s;}
@@ -123,14 +129,36 @@ const sb = (SUPABASE_URL.startsWith("http")) ? supabase.createClient(SUPABASE_UR
 const CURRENT_TERMS_VERSION = "2026-07-07";
 
 const DEFAULT_GOALS = {
-  calories: 2400, protein: 160, carbs: 260, fat: 75, water_oz: 100,
+  calories: 2400, protein: 160, carbs: 260, fat: 75, fiber: 30, sugar_limit: 30, sodium_limit: 2300, water_oz: 100,
+  sat_fat_limit: 24, trans_fat_limit: 2, added_sugar_limit: 30, cholesterol_limit: 300,
   micros: {
     "Vitamin C (mg)": 90, "Vitamin D (mcg)": 20, "Calcium (mg)": 1300,
     "Iron (mg)": 18, "Potassium (mg)": 3400, "Magnesium (mg)": 400,
-    "Zinc (mg)": 11, "Vitamin B12 (mcg)": 2.4
+    "Zinc (mg)": 11, "Vitamin B12 (mcg)": 2.4,
+    "Vitamin A (mcg)": 900, "Vitamin E (mg)": 15, "Vitamin K (mcg)": 120, "Folate (mcg)": 400
   },
-  supplements: [{name:"Multivitamin", dose:"1 tablet"}, {name:"Vitamin D3", dose:"2000 IU"}]
+  supplements: [{name:"Multivitamin", dose:"1 tablet"}, {name:"Vitamin D3", dose:"2000 IU"}],
+  profile: null // { gender, age, heightIn, weightLb, activity, goal, rateLbWk } — powers dynamic goal recalculation
 };
+
+// Standard adult RDAs by gender/age — used to auto-update micro targets from the calculator.
+function computeMicroTargets(gender, age){
+  const older = age >= 51;
+  return {
+    "Vitamin C (mg)": gender==='male' ? 90 : 75,
+    "Vitamin D (mcg)": age >= 71 ? 20 : 15,
+    "Calcium (mg)": older ? (gender==='male' && age<71 ? 1000 : 1200) : 1000,
+    "Iron (mg)": gender==='male' ? 8 : (older ? 8 : 18),
+    "Potassium (mg)": gender==='male' ? 3400 : 2600,
+    "Magnesium (mg)": gender==='male' ? (age>30?420:400) : (age>30?320:310),
+    "Zinc (mg)": gender==='male' ? 11 : 8,
+    "Vitamin B12 (mcg)": 2.4,
+    "Vitamin A (mcg)": gender==='male' ? 900 : 700,
+    "Vitamin E (mg)": 15,
+    "Vitamin K (mcg)": gender==='male' ? 120 : 90,
+    "Folate (mcg)": 400
+  };
+}
 
 let state = {
   screen: 'loading', // loading | auth | app
@@ -141,6 +169,7 @@ let state = {
   tab: 'log',
   today: dateKey(new Date()),
   log: null,
+  recipeDraft: { name:'', ingredients:[], cookedWeight:null, servings:1 },
 };
 
 function dateKey(d){ return d.toISOString().slice(0,10); }
@@ -148,6 +177,7 @@ function todayNice(){ return new Date().toLocaleDateString(undefined,{weekday:'s
 function uid(){ return Math.random().toString(36).slice(2,9); }
 function escapeHtml(str){ if(str==null) return ''; return String(str).replace(/[&<>"']/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
 function el(html){ const d=document.createElement('div'); d.innerHTML=html; return d.firstElementChild; }
+function round1(n){ return Math.round(n*10)/10; }
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(window.__t); window.__t=setTimeout(()=>t.classList.remove('show'),2200); }
 
 /* ---------------- Data layer (Supabase) ---------------- */
@@ -157,11 +187,18 @@ async function fetchProfile(userId){
 }
 async function createProfile(userId, username){
   const { error } = await sb.from('profiles').insert({
-    id:userId, username,
+    id:userId, username, leaderboard_visible: true,
     terms_version: CURRENT_TERMS_VERSION,
     terms_accepted_at: new Date().toISOString()
   });
   if(error) throw error;
+  localStorage.removeItem('fl_pending_username');
+}
+async function setLeaderboardVisible(userId, visible){
+  await sb.from('profiles').update({ leaderboard_visible: visible }).eq('id', userId);
+  state.profile.leaderboard_visible = visible;
+  if(!visible) await sb.from('leaderboard').delete().eq('user_id', userId).eq('log_date', state.today);
+  else await pushToLeaderboard();
 }
 async function recordTermsAcceptance(userId){
   await sb.from('profiles').update({
@@ -175,56 +212,115 @@ async function fetchGoals(userId){
     await sb.from('goals').upsert(g);
     return g;
   }
+  // Backfill any fields that predate this update, so older accounts don't break.
+  if(data.fiber==null) data.fiber = DEFAULT_GOALS.fiber;
+  if(data.sugar_limit==null) data.sugar_limit = DEFAULT_GOALS.sugar_limit;
+  if(data.sodium_limit==null) data.sodium_limit = DEFAULT_GOALS.sodium_limit;
+  if(data.sat_fat_limit==null) data.sat_fat_limit = DEFAULT_GOALS.sat_fat_limit;
+  if(data.trans_fat_limit==null) data.trans_fat_limit = DEFAULT_GOALS.trans_fat_limit;
+  if(data.added_sugar_limit==null) data.added_sugar_limit = DEFAULT_GOALS.added_sugar_limit;
+  if(data.cholesterol_limit==null) data.cholesterol_limit = DEFAULT_GOALS.cholesterol_limit;
+  if(data.profile===undefined) data.profile = null;
+  // Backfill any newer micro targets that predate this account without clobbering user edits.
+  data.micros = data.micros || {};
+  Object.keys(DEFAULT_GOALS.micros).forEach(k=>{ if(data.micros[k]==null) data.micros[k] = DEFAULT_GOALS.micros[k]; });
   return data;
 }
 async function saveGoalsRemote(){
   const g = state.goals;
   await sb.from('goals').upsert({
     user_id: state.session.user.id, calories:g.calories, protein:g.protein, carbs:g.carbs, fat:g.fat,
-    water_oz:g.water_oz, micros:g.micros, supplements:g.supplements, updated_at:new Date().toISOString()
+    fiber:g.fiber, sugar_limit:g.sugar_limit, sodium_limit:g.sodium_limit,
+    sat_fat_limit:g.sat_fat_limit, trans_fat_limit:g.trans_fat_limit,
+    added_sugar_limit:g.added_sugar_limit, cholesterol_limit:g.cholesterol_limit,
+    water_oz:g.water_oz, micros:g.micros, supplements:g.supplements, profile:g.profile,
+    updated_at:new Date().toISOString()
   });
 }
 async function fetchDay(userId, dateStr){
   const { data } = await sb.from('logs').select('*').eq('user_id', userId).eq('log_date', dateStr).maybeSingle();
-  return data || { foods:[], water_oz:0, supplements:[] };
+  if(!data) return { foods:[], water_entries:[], water_oz:0, supplements:[] };
+  // Migrate legacy rows that only had a raw water_oz number, so a prior total isn't lost.
+  if(!data.water_entries || !data.water_entries.length){
+    data.water_entries = (data.water_oz && data.water_oz>0) ? [{ id:'legacy', oz:data.water_oz, time:Date.now() }] : [];
+  }
+  return data;
+}
+function recalcWaterTotal(day){
+  day.water_oz = (day.water_entries||[]).reduce((sum,e)=>sum+(e.oz||0),0);
+  return day.water_oz;
 }
 async function saveDayRemote(){
+  recalcWaterTotal(state.log);
   await sb.from('logs').upsert({
     user_id: state.session.user.id, log_date: state.today,
-    foods: state.log.foods, water_oz: state.log.water_oz, supplements: state.log.supplements,
-    updated_at: new Date().toISOString()
+    foods: state.log.foods, water_entries: state.log.water_entries, water_oz: state.log.water_oz,
+    supplements: state.log.supplements, updated_at: new Date().toISOString()
   }, { onConflict: 'user_id,log_date' });
+}
+async function fetchWeights(userId, limit){
+  const { data } = await sb.from('weights').select('*').eq('user_id', userId).order('log_date',{ ascending:false }).limit(limit||14);
+  return data || [];
+}
+async function saveWeight(userId, dateStr, weightLb){
+  await sb.from('weights').upsert({ user_id:userId, log_date:dateStr, weight_lb:weightLb, updated_at:new Date().toISOString() }, { onConflict:'user_id,log_date' });
+}
+async function deleteWeight(userId, dateStr){
+  await sb.from('weights').delete().eq('user_id',userId).eq('log_date',dateStr);
 }
 function closeness(actual, target){ if(!target||target<=0) return null; const d=Math.abs(actual-target)/target*100; return Math.max(0,100-d*1.6); }
 function capPct(actual, target){ if(!target||target<=0) return null; return Math.min(100,(actual/target)*100); }
+function underLimitScore(actual, limit){
+  if(!limit || limit<=0) return null;
+  if(actual<=limit) return 100;
+  const overPct = (actual-limit)/limit*100;
+  return Math.max(0, 100 - overPct*1.6);
+}
 function computeTotals(day){
-  const t={calories:0,protein:0,carbs:0,fat:0,micros:{}};
+  const t={calories:0,protein:0,carbs:0,fat:0,fiber:0,sugar:0,sodium:0,
+    sat_fat:0,trans_fat:0,unsat_fat:0,added_sugar:0,cholesterol:0,micros:{}};
   Object.keys(state.goals.micros||{}).forEach(m=>t.micros[m]=0);
   (day.foods||[]).forEach(f=>{
     t.calories+=f.calories||0; t.protein+=f.protein_g||0; t.carbs+=f.carbs_g||0; t.fat+=f.fat_g||0;
-    if(f.micros) Object.keys(f.micros).forEach(m=>{ if(t.micros[m]!=null) t.micros[m]+=f.micros[m]||0; });
+    t.fiber+=f.fiber_g||0; t.sugar+=f.sugar_g||0; t.sodium+=f.sodium_mg||0;
+    t.sat_fat+=f.sat_fat_g||0; t.trans_fat+=f.trans_fat_g||0; t.unsat_fat+=f.unsat_fat_g||0;
+    t.added_sugar+=f.added_sugar_g||0; t.cholesterol+=f.cholesterol_mg||0;
+    if(f.micros) Object.keys(f.micros).forEach(m=>{ if(t.micros[m]!=null && f.micros[m]!=null) t.micros[m]+=f.micros[m]||0; });
   });
   return t;
 }
-function computeDayScore(day){
+function computeDayScoreDetail(day){
   const g=state.goals, t=computeTotals(day), parts=[];
-  const cCal=closeness(t.calories,g.calories); if(cCal!=null) parts.push(cCal);
+  const cCal=closeness(t.calories,g.calories); if(cCal!=null) parts.push({label:'Calories', pct:cCal});
   const macroScores=[closeness(t.protein,g.protein),closeness(t.carbs,g.carbs),closeness(t.fat,g.fat)].filter(x=>x!=null);
-  if(macroScores.length) parts.push(macroScores.reduce((a,b)=>a+b,0)/macroScores.length);
-  const wScore=capPct(day.water_oz||0,g.water_oz); if(wScore!=null) parts.push(wScore);
+  if(macroScores.length) parts.push({label:'Protein/carbs/fat', pct: macroScores.reduce((a,b)=>a+b,0)/macroScores.length});
+  const fiberScore=capPct(t.fiber,g.fiber); if(fiberScore!=null) parts.push({label:'Fiber', pct:fiberScore});
+  const sugarScore=underLimitScore(t.sugar,g.sugar_limit); if(sugarScore!=null) parts.push({label:'Sugar limit', pct:sugarScore});
+  const sodiumScore=underLimitScore(t.sodium,g.sodium_limit); if(sodiumScore!=null) parts.push({label:'Sodium limit', pct:sodiumScore});
+  const satFatScore=underLimitScore(t.sat_fat,g.sat_fat_limit); if(satFatScore!=null) parts.push({label:'Saturated fat limit', pct:satFatScore});
+  const transFatScore=underLimitScore(t.trans_fat,g.trans_fat_limit); if(transFatScore!=null) parts.push({label:'Trans fat limit', pct:transFatScore});
+  const addedSugarScore=underLimitScore(t.added_sugar,g.added_sugar_limit); if(addedSugarScore!=null) parts.push({label:'Added sugar limit', pct:addedSugarScore});
+  const cholScore=underLimitScore(t.cholesterol,g.cholesterol_limit); if(cholScore!=null) parts.push({label:'Cholesterol limit', pct:cholScore});
+  const wScore=capPct(day.water_oz||0,g.water_oz); if(wScore!=null) parts.push({label:'Water', pct:wScore});
   if(g.supplements && g.supplements.length){
     const taken=(day.supplements||[]).filter(s=>s.taken).length;
-    parts.push(Math.min(100,(taken/g.supplements.length)*100));
+    parts.push({label:'Supplements', pct: Math.min(100,(taken/g.supplements.length)*100)});
   }
   const mk=Object.keys(g.micros||{});
   if(mk.length){
     const ms=mk.map(m=>capPct(t.micros[m]||0,g.micros[m])).filter(x=>x!=null);
-    if(ms.length) parts.push(ms.reduce((a,b)=>a+b,0)/ms.length);
+    if(ms.length) parts.push({label:'Micronutrients (avg of '+mk.length+')', pct: ms.reduce((a,b)=>a+b,0)/ms.length});
   }
-  return parts.length ? Math.round(parts.reduce((a,b)=>a+b,0)/parts.length) : 0;
+  const score = parts.length ? Math.round(parts.reduce((a,b)=>a+b.pct,0)/parts.length) : 0;
+  return { score, parts };
 }
+function computeDayScore(day){ return computeDayScoreDetail(day).score; }
 async function pushToLeaderboard(){
   const score = computeDayScore(state.log);
+  if(state.profile.leaderboard_visible === false){
+    await sb.from('leaderboard').delete().eq('user_id', state.session.user.id).eq('log_date', state.today);
+    return;
+  }
   await sb.from('leaderboard').upsert({
     user_id: state.session.user.id, log_date: state.today, username: state.profile.username, score,
     updated_at: new Date().toISOString()
@@ -250,25 +346,61 @@ async function computeStreak(userId){
 // at https://fdc.nal.usda.gov/api-key-signup and paste it below.
 const USDA_API_KEY = "DEMO_KEY";
 
+const usdaCache = new Map(); // query -> results, avoids re-hitting the API for repeat searches this session
 async function searchFoodDB(query){
+  const key = query.trim().toLowerCase();
+  if(usdaCache.has(key)) return usdaCache.get(key);
   const url = `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${USDA_API_KEY}&query=${encodeURIComponent(query)}&pageSize=8`;
   const resp = await fetch(url);
-  if(!resp.ok) throw new Error('Search failed (rate limited? get your own free key — see comment above USDA_API_KEY)');
+  if(!resp.ok){
+    if(resp.status === 429 || resp.status === 403){
+      throw new Error("USDA's shared free key is rate-limited right now — get your own free key at fdc.nal.usda.gov/api-key-signup (30 seconds, no card) and paste it into USDA_API_KEY in index.html.");
+    }
+    throw new Error('Search failed — try again in a moment.');
+  }
   const data = await resp.json();
-  return (data.foods||[]).map(food=>{
+  const results = (data.foods||[]).map(food=>{
     const nutrients = food.foodNutrients || [];
-    const find = (needle) => { const n = nutrients.find(x=>(x.nutrientName||'').toLowerCase().includes(needle)); return n ? n.value : 0; };
+    // Returns null (not 0) when USDA doesn't report a nutrient for this food, so the UI can
+    // show "N/A" instead of implying the food genuinely has zero of it.
+    const find = (needle) => { const n = nutrients.find(x=>(x.nutrientName||'').toLowerCase().includes(needle)); return n ? n.value : null; };
+    const findOrZero = (needle) => { const v = find(needle); return v==null ? 0 : v; };
     return {
       name: food.description,
       brand: food.brandOwner || food.brandName || '',
       per100g: {
-        calories: find('energy'),
-        protein: find('protein'),
-        fat: find('total lipid'),
-        carbs: find('carbohydrate')
+        calories: findOrZero('energy'),
+        protein: findOrZero('protein'),
+        fat: findOrZero('total lipid'),
+        carbs: findOrZero('carbohydrate'),
+        fiber: findOrZero('fiber'),
+        sugar: findOrZero('sugars'),
+        sodium: findOrZero('sodium'),
+        sat_fat: find('fatty acids, total saturated'),
+        trans_fat: find('fatty acids, total trans'),
+        unsat_fat: (()=>{ const mono=find('fatty acids, total monounsaturated'); const poly=find('fatty acids, total polyunsaturated'); return (mono==null && poly==null) ? null : (mono||0)+(poly||0); })(),
+        added_sugar: find('sugars, added'),
+        cholesterol: find('cholesterol'),
+        caffeine: find('caffeine'),
+        micros: {
+          "Vitamin C (mg)": find('vitamin c'),
+          "Vitamin D (mcg)": find('vitamin d'),
+          "Calcium (mg)": find('calcium'),
+          "Iron (mg)": find('iron'),
+          "Potassium (mg)": find('potassium'),
+          "Magnesium (mg)": find('magnesium'),
+          "Zinc (mg)": find('zinc'),
+          "Vitamin B12 (mcg)": find('vitamin b-12'),
+          "Vitamin A (mcg)": find('vitamin a, rae'),
+          "Vitamin E (mg)": find('vitamin e'),
+          "Vitamin K (mcg)": find('vitamin k'),
+          "Folate (mcg)": find('folate, total')
+        }
       }
     };
   });
+  usdaCache.set(key, results);
+  return results;
 }
 
 async function handleSignUp(email, password, username){
@@ -279,6 +411,10 @@ async function handleSignUp(email, password, username){
     await createProfile(data.user.id, username);
     await initSession(data.session);
   } else {
+    // Email confirmation is required — we can't create the profile row until they're
+    // actually signed in (RLS needs an authenticated session). Stash the username so
+    // the post-confirmation screen can pre-fill it instead of asking cold.
+    localStorage.setItem('fl_pending_username', username);
     toast("Check your email to confirm your account, then sign in.");
     state.authMode = 'signin';
     render();
@@ -370,12 +506,13 @@ function renderAuth(){
 /* ---------------- Rendering: main app (same shape as the Claude-artifact version) ---------------- */
 function renderNeedsProfile(){
   const wrap = el(`<div class="auth-screen"></div>`);
+  const pending = localStorage.getItem('fl_pending_username') || '';
   const card = el(`
     <div class="auth-card">
       <div class="auth-mark">FL</div>
-      <div class="auth-title">One more step</div>
-      <div class="auth-sub">Your account exists, but we're missing a username for you — pick one to finish setting up your ledger.</div>
-      <div class="field"><label>Username (public on leaderboard)</label><input id="np-username" type="text" placeholder="e.g. connor_w"></div>
+      <div class="auth-title">${pending ? 'Confirming your username' : 'One more step'}</div>
+      <div class="auth-sub">${pending ? "We remembered the username you picked when you signed up — confirm it below (or change it) to finish setting up your ledger." : "Your account exists, but we're missing a username for you — pick one to finish setting up your ledger."}</div>
+      <div class="field"><label>Username (public on leaderboard)</label><input id="np-username" type="text" placeholder="e.g. connor_w" value="${escapeHtml(pending)}"></div>
       <button class="btn full" id="np-submit">Finish setup</button>
       <div id="np-error" class="auth-error"></div>
     </div>
@@ -456,7 +593,7 @@ function render(){
       <button id="signout-btn">sign out</button>
     </div>
     <div class="nav">
-      ${navBtn('log','Log')}${navBtn('reverse','Reverse')}${navBtn('leaderboard','Leaderboard')}${navBtn('goals','Goals')}
+      ${navBtn('log','Log')}${navBtn('reverse','Reverse')}${navBtn('recipe','Recipe')}${navBtn('leaderboard','Leaderboard')}${navBtn('goals','Goals')}
     </div>
     <div class="view" id="view"></div>
     <div class="disclaimer-footer">Nutrition figures are estimates, not medical advice. See <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a>.</div>
@@ -466,6 +603,7 @@ function render(){
   const view = document.getElementById('view');
   if(state.tab==='log') view.appendChild(renderLog());
   if(state.tab==='reverse') view.appendChild(renderReverse());
+  if(state.tab==='recipe') view.appendChild(renderRecipe());
   if(state.tab==='leaderboard') view.appendChild(renderLeaderboard());
   if(state.tab==='goals') view.appendChild(renderGoals());
 }
@@ -493,15 +631,96 @@ function renderLog(){
     if(n) n.textContent = s;
   });
 
-  wrap.appendChild(el(`<div class="ring-row">
-    ${ringCard('Score',score,100,'--mint',score+'/100')}
+  const ringRow = el(`<div class="ring-row" id="ring-row" style="cursor:pointer;">
+    ${ringCard('Score',score,100,'--mint',score+'/100 · tap for breakdown')}
     ${ringCard('Cals',Math.round(totals.calories),g.calories,'--ember',Math.round(totals.calories)+' of '+g.calories)}
     ${ringCard('Protein',Math.round(totals.protein),g.protein,'--signal',Math.round(totals.protein)+'g of '+g.protein+'g')}
     ${ringCard('Carbs',Math.round(totals.carbs),g.carbs,'--violet',Math.round(totals.carbs)+'g of '+g.carbs+'g')}
     ${ringCard('Fat',Math.round(totals.fat),g.fat,'#FFD166',Math.round(totals.fat)+'g of '+g.fat+'g')}
+    ${ringCard('Fiber',Math.round(totals.fiber),g.fiber,'--mint',Math.round(totals.fiber)+'g of '+g.fiber+'g')}
+    ${ringCard('Sugar',Math.round(totals.sugar),g.sugar_limit,'#FFD166',Math.round(totals.sugar)+'g of '+g.sugar_limit+'g max')}
+    ${ringCard('Sodium',Math.round(totals.sodium),g.sodium_limit,'--ember',Math.round(totals.sodium)+'mg of '+g.sodium_limit+'mg max')}
+    ${ringCard('Sat fat',Math.round(totals.sat_fat),g.sat_fat_limit,'#FFD166',Math.round(totals.sat_fat)+'g of '+g.sat_fat_limit+'g max')}
+    ${ringCard('Added sugar',Math.round(totals.added_sugar),g.added_sugar_limit,'#FFD166',Math.round(totals.added_sugar)+'g of '+g.added_sugar_limit+'g max')}
+    ${ringCard('Cholesterol',Math.round(totals.cholesterol),g.cholesterol_limit,'--ember',Math.round(totals.cholesterol)+'mg of '+g.cholesterol_limit+'mg max')}
     ${ringCard('Water',state.log.water_oz||0,g.water_oz,'--signal',(state.log.water_oz||0)+' of '+g.water_oz+'oz')}
-  </div>`));
+  </div>`);
+  wrap.appendChild(ringRow);
 
+  const breakdownPanel = el(`<div class="card" id="score-breakdown" style="display:none;"></div>`);
+  const detail = computeDayScoreDetail(state.log);
+  breakdownPanel.innerHTML = `<div class="card-title">Score breakdown <span class="tag">${score}/100 overall</span></div>` +
+    detail.parts.map(p=>`
+      <div class="micro-item" style="margin-bottom:8px;">
+        <div class="micro-name">${escapeHtml(p.label)}</div>
+        <div class="micro-bar"><div class="micro-fill" style="width:${Math.max(0,Math.min(100,p.pct))}%;background:${p.pct>=95?'var(--mint)':p.pct>=60?'var(--signal)':'var(--danger)'};"></div></div>
+        <div class="micro-val">${Math.round(p.pct)}%</div>
+      </div>
+    `).join('') +
+    `<div class="hint">Your score is the average of every category above. Categories with no goal set (e.g. no supplements added) are left out rather than counted as a zero.</div>`;
+  wrap.appendChild(breakdownPanel);
+  ringRow.onclick = ()=>{
+    breakdownPanel.style.display = breakdownPanel.style.display==='none' ? 'block' : 'none';
+    if(breakdownPanel.style.display==='block') breakdownPanel.scrollIntoView({behavior:'smooth', block:'nearest'});
+  };
+
+  // ---- Weigh-in ----
+  const weighCard = el(`
+    <div class="card">
+      <div class="card-title">Today's weigh-in</div>
+      <div class="row">
+        <input id="w-weight" type="number" step="0.1" placeholder="Weight (lb)">
+        <button class="btn" id="w-save" style="flex:0 0 auto;">Save</button>
+      </div>
+      <div id="w-trend" class="hint"></div>
+      <div id="w-history" style="margin-top:10px;"></div>
+    </div>
+  `);
+  const loadWeighIn = async ()=>{
+    const rows = await fetchWeights(state.session.user.id, 30);
+    const todays = rows.find(r=>r.log_date===state.today);
+    if(todays) weighCard.querySelector('#w-weight').value = todays.weight_lb;
+    const trendBox = weighCard.querySelector('#w-trend');
+    if(rows.length >= 2){
+      const latest = rows[0];
+      const weekAgoCutoff = new Date(); weekAgoCutoff.setDate(weekAgoCutoff.getDate()-7);
+      const weekAgoRow = rows.find(r => new Date(r.log_date) <= weekAgoCutoff) || rows[rows.length-1];
+      const delta = latest.weight_lb - weekAgoRow.weight_lb;
+      const arrow = delta>0?'▲':delta<0?'▼':'—';
+      trendBox.textContent = `${arrow} ${Math.abs(delta).toFixed(1)} lb vs ${weekAgoRow===rows[rows.length-1] && weekAgoRow!==latest ? 'earliest logged entry' : '~7 days ago'}`;
+    } else { trendBox.textContent = 'Log a few days to start seeing a trend.'; }
+    const hist = weighCard.querySelector('#w-history');
+    hist.innerHTML = '';
+    if(!rows.length){ hist.appendChild(el(`<div class="empty">No weigh-ins yet.</div>`)); return; }
+    rows.slice(0,10).forEach(r=>{
+      const row = el(`<div class="entry"><div class="entry-name">${new Date(r.log_date+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'})}</div><div style="display:flex;align-items:center;"><div class="entry-cals" style="cursor:pointer;text-decoration:underline dotted;">${r.weight_lb} lb</div><button class="del-btn">✕</button></div></div>`);
+      row.querySelector('.entry-cals').onclick = async ()=>{
+        const v = parseFloat(window.prompt('Edit this weigh-in (lb):', r.weight_lb));
+        if(!v) return;
+        await saveWeight(state.session.user.id, r.log_date, v);
+        if(r.log_date===state.today) weighCard.querySelector('#w-weight').value = v;
+        loadWeighIn();
+      };
+      row.querySelector('.del-btn').onclick = async ()=>{
+        await deleteWeight(state.session.user.id, r.log_date);
+        if(r.log_date===state.today) weighCard.querySelector('#w-weight').value = '';
+        loadWeighIn();
+      };
+      hist.appendChild(row);
+    });
+  };
+  weighCard.querySelector('#w-save').onclick = async ()=>{
+    const v = parseFloat(weighCard.querySelector('#w-weight').value);
+    if(!v){ toast('Enter a weight.'); return; }
+    await saveWeight(state.session.user.id, state.today, v);
+    toast('Weigh-in saved');
+    loadWeighIn();
+  };
+  loadWeighIn();
+  wrap.appendChild(weighCard);
+
+  // ---- Free food search ----
+  let lastSearchExtra = null; // holds fiber/sugar/sodium/micros for the most recent "Use" pick, scaled to grams
   const searchCard = el(`
     <div class="card">
       <div class="card-title">Search food database <span class="tag">free · USDA</span></div>
@@ -510,7 +729,7 @@ function renderLog(){
         <button class="btn" id="s-go" style="flex:0 0 auto;">Search</button>
       </div>
       <div id="s-results"></div>
-      <div class="hint">Pulls real per-100g nutrition from the free USDA FoodData Central database, then fills in the fields below once you say how many grams you had — review and adjust before adding.</div>
+      <div class="hint">Pulls real per-100g nutrition (including fiber, sugar, sodium, and key vitamins/minerals) from the free USDA FoodData Central database, then fills in the fields below once you say how many grams you had — review and adjust before adding.</div>
     </div>
   `);
   const runSearch = async ()=>{
@@ -532,11 +751,23 @@ function renderLog(){
           const grams = parseFloat(gramsStr);
           if(!grams) return;
           const mult = grams/100;
+          const scale = (v)=> v==null ? '' : Math.round(v*mult);
           foodCard.querySelector('#f-name').value = r.name + ' (' + grams + 'g)';
-          foodCard.querySelector('#f-cal').value = Math.round(r.per100g.calories*mult);
-          foodCard.querySelector('#f-p').value = Math.round(r.per100g.protein*mult);
-          foodCard.querySelector('#f-c').value = Math.round(r.per100g.carbs*mult);
-          foodCard.querySelector('#f-f').value = Math.round(r.per100g.fat*mult);
+          foodCard.querySelector('#f-cal').value = scale(r.per100g.calories);
+          foodCard.querySelector('#f-p').value = scale(r.per100g.protein);
+          foodCard.querySelector('#f-c').value = scale(r.per100g.carbs);
+          foodCard.querySelector('#f-f').value = scale(r.per100g.fat);
+          foodCard.querySelector('#f-fiber').value = scale(r.per100g.fiber);
+          foodCard.querySelector('#f-sugar').value = scale(r.per100g.sugar);
+          foodCard.querySelector('#f-sodium').value = scale(r.per100g.sodium);
+          foodCard.querySelector('#f-satfat').value = scale(r.per100g.sat_fat);
+          foodCard.querySelector('#f-transfat').value = scale(r.per100g.trans_fat);
+          foodCard.querySelector('#f-unsatfat').value = scale(r.per100g.unsat_fat);
+          foodCard.querySelector('#f-addedsugar').value = scale(r.per100g.added_sugar);
+          foodCard.querySelector('#f-chol').value = scale(r.per100g.cholesterol);
+          const scaledMicros = {};
+          Object.keys(r.per100g.micros||{}).forEach(k=>{ const v=r.per100g.micros[k]; scaledMicros[k] = v==null ? null : round1(v*mult); });
+          lastSearchExtra = scaledMicros;
           toast('Filled in below — hit "Add to log" to confirm');
           foodCard.scrollIntoView({behavior:'smooth', block:'center'});
         };
@@ -562,8 +793,20 @@ function renderLog(){
         <div class="field"><label>Carbs g</label><input id="f-c" type="number"></div>
         <div class="field"><label>Fat g</label><input id="f-f" type="number"></div>
       </div>
+      <div class="row">
+        <div class="field"><label>Fiber g</label><input id="f-fiber" type="number"></div>
+        <div class="field"><label>Sugar g</label><input id="f-sugar" type="number"></div>
+        <div class="field"><label>Added sugar g</label><input id="f-addedsugar" type="number"></div>
+        <div class="field"><label>Sodium mg</label><input id="f-sodium" type="number"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Sat. fat g</label><input id="f-satfat" type="number"></div>
+        <div class="field"><label>Unsat. fat g</label><input id="f-unsatfat" type="number"></div>
+        <div class="field"><label>Trans fat g</label><input id="f-transfat" type="number"></div>
+        <div class="field"><label>Cholesterol mg</label><input id="f-chol" type="number"></div>
+      </div>
       <button class="btn full" id="f-add">Add to log</button>
-      <div class="hint">Use the free search above to auto-fill these, or type your own numbers from a nutrition label.</div>
+      <div class="hint">Use the free search above to auto-fill these, or type your own numbers from a nutrition label. Leave a field blank if it's not on the label — it'll be tracked as "not reported" rather than zero.</div>
     </div>
   `);
   foodCard.querySelector('#f-add').onclick = async ()=>{
@@ -572,8 +815,22 @@ function renderLog(){
     const p = parseFloat(foodCard.querySelector('#f-p').value)||0;
     const c = parseFloat(foodCard.querySelector('#f-c').value)||0;
     const f = parseFloat(foodCard.querySelector('#f-f').value)||0;
+    const fiber = parseFloat(foodCard.querySelector('#f-fiber').value)||0;
+    const sugar = parseFloat(foodCard.querySelector('#f-sugar').value)||0;
+    const sodium = parseFloat(foodCard.querySelector('#f-sodium').value)||0;
+    const satFat = parseFloat(foodCard.querySelector('#f-satfat').value)||0;
+    const unsatFat = parseFloat(foodCard.querySelector('#f-unsatfat').value)||0;
+    const transFat = parseFloat(foodCard.querySelector('#f-transfat').value)||0;
+    const addedSugar = parseFloat(foodCard.querySelector('#f-addedsugar').value)||0;
+    const chol = parseFloat(foodCard.querySelector('#f-chol').value)||0;
     if(!name){ toast('Give it a name.'); return; }
-    state.log.foods.push({ id:uid(), name, calories:cal, protein_g:p, carbs_g:c, fat_g:f, micros:{}, time:Date.now() });
+    state.log.foods.push({
+      id:uid(), name, calories:cal, protein_g:p, carbs_g:c, fat_g:f,
+      fiber_g:fiber, sugar_g:sugar, sodium_mg:sodium,
+      sat_fat_g:satFat, unsat_fat_g:unsatFat, trans_fat_g:transFat, added_sugar_g:addedSugar, cholesterol_mg:chol,
+      micros: lastSearchExtra || {}, time:Date.now()
+    });
+    lastSearchExtra = null;
     await saveDayRemote(); await pushToLeaderboard();
     toast('Logged: '+name); render();
   };
@@ -584,7 +841,7 @@ function renderLog(){
   if(!state.log.foods.length){ listEl.appendChild(el(`<div class="empty">Nothing logged yet today.</div>`)); }
   else {
     state.log.foods.slice().reverse().forEach(f=>{
-      const row = el(`<div class="entry"><div><div class="entry-name">${escapeHtml(f.name)}</div><div class="entry-meta">P ${Math.round(f.protein_g)}g · C ${Math.round(f.carbs_g)}g · F ${Math.round(f.fat_g)}g</div></div><div style="display:flex;align-items:center;"><div class="entry-cals">${Math.round(f.calories)}</div><button class="del-btn">✕</button></div></div>`);
+      const row = el(`<div class="entry"><div><div class="entry-name">${escapeHtml(f.name)}</div><div class="entry-meta">P ${Math.round(f.protein_g)}g · C ${Math.round(f.carbs_g)}g · F ${Math.round(f.fat_g)}g (sat ${Math.round(f.sat_fat_g||0)}g) · Fiber ${Math.round(f.fiber_g||0)}g · Sugar ${Math.round(f.sugar_g||0)}g (added ${Math.round(f.added_sugar_g||0)}g) · Na ${Math.round(f.sodium_mg||0)}mg · Chol ${Math.round(f.cholesterol_mg||0)}mg</div></div><div style="display:flex;align-items:center;"><div class="entry-cals">${Math.round(f.calories)}</div><button class="del-btn">✕</button></div></div>`);
       row.querySelector('.del-btn').onclick = async ()=>{
         state.log.foods = state.log.foods.filter(x=>x.id!==f.id);
         await saveDayRemote(); await pushToLeaderboard(); render();
@@ -594,16 +851,47 @@ function renderLog(){
   }
   wrap.appendChild(listCard);
 
+  // ---- Water, now as removable entries ----
   const waterCard = el(`<div class="card"><div class="card-title">Water <span class="tag">${state.log.water_oz||0} / ${g.water_oz} oz</span></div>
     <div class="water-row"><div class="water-chip" data-oz="8">+8oz cup</div><div class="water-chip" data-oz="16">+16oz bottle</div><div class="water-chip" data-oz="32">+32oz bottle</div></div>
-    <div class="row"><input id="water-custom" type="number" placeholder="Custom oz"><button class="btn" id="water-add" style="flex:0 0 auto;">Add</button></div></div>`);
-  waterCard.querySelectorAll('.water-chip').forEach(chip=>{
-    chip.onclick = async ()=>{ state.log.water_oz=(state.log.water_oz||0)+parseInt(chip.dataset.oz); await saveDayRemote(); await pushToLeaderboard(); render(); };
-  });
-  waterCard.querySelector('#water-add').onclick = async ()=>{
-    const v = parseFloat(waterCard.querySelector('#water-custom').value); if(!v) return;
-    state.log.water_oz=(state.log.water_oz||0)+v; await saveDayRemote(); await pushToLeaderboard(); render();
+    <div class="row"><input id="water-custom" type="number" placeholder="Custom oz"><button class="btn" id="water-add" style="flex:0 0 auto;">Add</button></div>
+    <div id="water-list" style="margin-top:10px;"></div>
+  </div>`);
+  const addWater = async (oz)=>{
+    state.log.water_entries = state.log.water_entries || [];
+    state.log.water_entries.push({ id:uid(), oz, time:Date.now() });
+    recalcWaterTotal(state.log);
+    await saveDayRemote(); await pushToLeaderboard(); render();
   };
+  waterCard.querySelectorAll('.water-chip').forEach(chip=>{
+    chip.onclick = ()=> addWater(parseInt(chip.dataset.oz));
+  });
+  waterCard.querySelector('#water-add').onclick = ()=>{
+    const v = parseFloat(waterCard.querySelector('#water-custom').value); if(!v) return;
+    addWater(v);
+  };
+  const waterList = waterCard.querySelector('#water-list');
+  const entries = (state.log.water_entries||[]).slice().reverse();
+  if(!entries.length){ waterList.appendChild(el(`<div class="empty">No water logged yet today.</div>`)); }
+  else {
+    entries.forEach(e=>{
+      const row = el(`<div class="entry"><div class="entry-name" style="cursor:pointer;text-decoration:underline dotted;">${e.oz}oz</div><button class="del-btn">✕</button></div>`);
+      row.querySelector('.entry-name').onclick = async ()=>{
+        const v = parseFloat(window.prompt('Edit this entry (oz):', e.oz));
+        if(!v) return;
+        const idx = (state.log.water_entries||[]).findIndex(x=>x.id===e.id);
+        if(idx>=0){ state.log.water_entries[idx].oz = v; }
+        recalcWaterTotal(state.log);
+        await saveDayRemote(); await pushToLeaderboard(); render();
+      };
+      row.querySelector('.del-btn').onclick = async ()=>{
+        state.log.water_entries = (state.log.water_entries||[]).filter(x=>x.id!==e.id);
+        recalcWaterTotal(state.log);
+        await saveDayRemote(); await pushToLeaderboard(); render();
+      };
+      waterList.appendChild(row);
+    });
+  }
   wrap.appendChild(waterCard);
 
   const suppCard = el(`<div class="card"><div class="card-title">Supplements</div><div id="supp-list"></div></div>`);
@@ -624,6 +912,27 @@ function renderLog(){
     });
   }
   wrap.appendChild(suppCard);
+
+  // ---- Micronutrients ----
+  const microKeys = Object.keys(g.micros||{});
+  if(microKeys.length){
+    const microCard = el(`<div class="card"><div class="card-title">Micronutrients</div><div class="micro-grid" id="micro-grid"></div></div>`);
+    const grid = microCard.querySelector('#micro-grid');
+    microKeys.forEach(m=>{
+      const val = totals.micros[m]||0;
+      const target = g.micros[m];
+      const pct = Math.min(100, target? (val/target*100):0);
+      grid.appendChild(el(`
+        <div class="micro-item">
+          <div class="micro-name">${escapeHtml(m)}</div>
+          <div class="micro-bar"><div class="micro-fill" style="width:${pct}%"></div></div>
+          <div class="micro-val">${round1(val)} / ${target}</div>
+        </div>
+      `));
+    });
+    wrap.appendChild(microCard);
+  }
+
   return wrap;
 }
 
@@ -704,6 +1013,184 @@ function renderReverse(){
   return wrap;
 }
 
+function sumRecipe(ingredients){
+  const t = {calories:0,protein:0,carbs:0,fat:0,fiber:0,sugar:0,sodium:0,micros:{}};
+  ingredients.forEach(ing=>{
+    const mult = ing.grams/100;
+    t.calories += (ing.per100g.calories||0)*mult;
+    t.protein += (ing.per100g.protein||0)*mult;
+    t.carbs += (ing.per100g.carbs||0)*mult;
+    t.fat += (ing.per100g.fat||0)*mult;
+    t.fiber += (ing.per100g.fiber||0)*mult;
+    t.sugar += (ing.per100g.sugar||0)*mult;
+    t.sodium += (ing.per100g.sodium||0)*mult;
+    Object.keys(ing.per100g.micros||{}).forEach(k=>{
+      t.micros[k] = (t.micros[k]||0) + (ing.per100g.micros[k]||0)*mult;
+    });
+  });
+  return t;
+}
+
+function renderRecipe(){
+  const draft = state.recipeDraft;
+  const wrap = el(`<div></div>`);
+
+  const searchCard = el(`
+    <div class="card">
+      <div class="card-title">Build a recipe <span class="tag">free · USDA-assisted</span></div>
+      <div class="field"><label>Recipe name</label><input id="rc-name" value="${escapeHtml(draft.name)}" placeholder="e.g. Sunday chili"></div>
+      <div class="row">
+        <input id="rc-query" placeholder="Search an ingredient, e.g. chicken breast">
+        <button class="btn" id="rc-search" style="flex:0 0 auto;">Search</button>
+      </div>
+      <div id="rc-results"></div>
+      <div class="hint">Add every ingredient by weight. This uses the same free USDA database as the food search — no extra cost.</div>
+    </div>
+  `);
+  searchCard.querySelector('#rc-name').addEventListener('change', e=>{ draft.name = e.target.value; });
+  const runSearch = async ()=>{
+    const q = searchCard.querySelector('#rc-query').value.trim();
+    if(!q) return;
+    const box = searchCard.querySelector('#rc-results');
+    box.innerHTML = `<div class="empty">Searching...</div>`;
+    try{
+      const results = await searchFoodDB(q);
+      if(!results.length){ box.innerHTML = `<div class="empty">No matches.</div>`; return; }
+      box.innerHTML = '';
+      results.slice(0,6).forEach(r=>{
+        const row = el(`<div class="entry" style="cursor:pointer;"><div><div class="entry-name">${escapeHtml(r.name)}</div><div class="entry-meta">${escapeHtml(r.brand)} ${Math.round(r.per100g.calories)} kcal/100g</div></div><button class="btn small">Add</button></div>`);
+        row.querySelector('button').onclick = ()=>{
+          const gramsStr = window.prompt(`How many grams of "${r.name}" goes in the recipe?`, '100');
+          const grams = parseFloat(gramsStr);
+          if(!grams) return;
+          draft.ingredients.push({ id:uid(), name:r.name, grams, per100g:r.per100g });
+          toast('Added to recipe');
+          render();
+        };
+        box.appendChild(row);
+      });
+    }catch(e){ box.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
+  };
+  searchCard.querySelector('#rc-search').onclick = runSearch;
+  searchCard.querySelector('#rc-query').addEventListener('keydown', e=>{ if(e.key==='Enter') runSearch(); });
+  wrap.appendChild(searchCard);
+
+  const ingCard = el(`<div class="card"><div class="card-title">Ingredients <span class="tag">${draft.ingredients.length}</span></div><div id="ing-list"></div></div>`);
+  const ingList = ingCard.querySelector('#ing-list');
+  if(!draft.ingredients.length){ ingList.appendChild(el(`<div class="empty">Search above to add ingredients.</div>`)); }
+  else {
+    draft.ingredients.forEach(ing=>{
+      const row = el(`<div class="entry"><div class="entry-name">${escapeHtml(ing.name)}</div><div style="display:flex;align-items:center;"><div class="entry-cals" style="cursor:pointer;text-decoration:underline dotted;">${ing.grams}g</div><button class="del-btn">✕</button></div></div>`);
+      row.querySelector('.entry-cals').onclick = ()=>{
+        const v = parseFloat(window.prompt('Edit grams:', ing.grams));
+        if(!v) return;
+        ing.grams = v; render();
+      };
+      row.querySelector('.del-btn').onclick = ()=>{
+        draft.ingredients = draft.ingredients.filter(x=>x.id!==ing.id);
+        render();
+      };
+      ingList.appendChild(row);
+    });
+  }
+  wrap.appendChild(ingCard);
+
+  const settingsCard = el(`
+    <div class="card">
+      <div class="card-title">Finished dish</div>
+      <div class="row">
+        <div class="field"><label>Final cooked weight (g)</label><input id="rc-cooked" type="number" value="${draft.cookedWeight||''}" placeholder="e.g. 1240"></div>
+        <div class="field"><label>Servings</label><input id="rc-servings" type="number" value="${draft.servings||1}"></div>
+      </div>
+    </div>
+  `);
+  settingsCard.querySelector('#rc-cooked').addEventListener('change', e=>{ draft.cookedWeight = parseFloat(e.target.value)||null; render(); });
+  settingsCard.querySelector('#rc-servings').addEventListener('change', e=>{ draft.servings = parseFloat(e.target.value)||1; render(); });
+  wrap.appendChild(settingsCard);
+
+  if(draft.ingredients.length){
+    const totals = sumRecipe(draft.ingredients);
+    const cooked = draft.cookedWeight;
+    const resultCard = el(`<div class="card"><div class="card-title">Totals</div></div>`);
+    resultCard.appendChild(el(`
+      <div class="result-box">
+        <div class="result-headline">${Math.round(totals.calories)}</div>
+        <div class="result-sub">total calories for the whole recipe</div>
+        <div class="macro-strip">
+          <div class="macro-cell"><div class="n">${Math.round(totals.protein)}g</div><div class="l">Protein</div></div>
+          <div class="macro-cell"><div class="n">${Math.round(totals.carbs)}g</div><div class="l">Carbs</div></div>
+          <div class="macro-cell"><div class="n">${Math.round(totals.fat)}g</div><div class="l">Fat</div></div>
+        </div>
+        <div class="macro-strip">
+          <div class="macro-cell"><div class="n">${Math.round(totals.fiber)}g</div><div class="l">Fiber</div></div>
+          <div class="macro-cell"><div class="n">${Math.round(totals.sugar)}g</div><div class="l">Sugar</div></div>
+          <div class="macro-cell"><div class="n">${Math.round(totals.sodium)}mg</div><div class="l">Sodium</div></div>
+        </div>
+      </div>
+    `));
+    if(cooked){
+      const per100 = { calories: totals.calories/cooked*100, protein: totals.protein/cooked*100, carbs: totals.carbs/cooked*100, fat: totals.fat/cooked*100 };
+      resultCard.appendChild(el(`
+        <div class="result-box" style="margin-top:12px;">
+          <div class="result-sub">Per 100g of finished dish</div>
+          <div class="macro-strip">
+            <div class="macro-cell"><div class="n">${Math.round(per100.calories)}</div><div class="l">Kcal</div></div>
+            <div class="macro-cell"><div class="n">${Math.round(per100.protein)}g</div><div class="l">Protein</div></div>
+            <div class="macro-cell"><div class="n">${Math.round(per100.carbs)}g</div><div class="l">Carbs</div></div>
+            <div class="macro-cell"><div class="n">${Math.round(per100.fat)}g</div><div class="l">Fat</div></div>
+          </div>
+        </div>
+      `));
+      const perServing = {
+        calories: totals.calories/draft.servings, protein: totals.protein/draft.servings,
+        carbs: totals.carbs/draft.servings, fat: totals.fat/draft.servings,
+        fiber: totals.fiber/draft.servings, sugar: totals.sugar/draft.servings, sodium: totals.sodium/draft.servings
+      };
+      const perServingMicros = {};
+      Object.keys(totals.micros).forEach(k=>{ perServingMicros[k] = (totals.micros[k]||0)/draft.servings; });
+      const servingBox = el(`
+        <div class="result-box" style="margin-top:12px;">
+          <div class="result-sub">Per serving (${draft.servings} servings total)</div>
+          <div class="result-headline">${Math.round(perServing.calories)}</div>
+          <div class="macro-strip">
+            <div class="macro-cell"><div class="n">${Math.round(perServing.protein)}g</div><div class="l">Protein</div></div>
+            <div class="macro-cell"><div class="n">${Math.round(perServing.carbs)}g</div><div class="l">Carbs</div></div>
+            <div class="macro-cell"><div class="n">${Math.round(perServing.fat)}g</div><div class="l">Fat</div></div>
+          </div>
+        </div>
+      `);
+      const logBtn = el(`<button class="btn full" style="margin-top:12px;">Log 1 serving to today</button>`);
+      logBtn.onclick = async ()=>{
+        state.log.foods.push({
+          id:uid(), name:(draft.name||'Recipe')+' (1 serving)',
+          calories: perServing.calories, protein_g: perServing.protein, carbs_g: perServing.carbs, fat_g: perServing.fat,
+          fiber_g: perServing.fiber, sugar_g: perServing.sugar, sodium_mg: perServing.sodium,
+          micros: perServingMicros, time: Date.now()
+        });
+        await saveDayRemote(); await pushToLeaderboard();
+        toast('Logged 1 serving of '+(draft.name||'recipe'));
+        state.tab='log'; render();
+      };
+      servingBox.appendChild(logBtn);
+      resultCard.appendChild(servingBox);
+    } else {
+      resultCard.appendChild(el(`<div class="hint" style="margin-top:10px;">Enter the final cooked weight above to see per-100g and per-serving breakdowns.</div>`));
+    }
+    wrap.appendChild(resultCard);
+  }
+
+  const clearBtn = el(`<button class="btn ghost full">Clear this recipe</button>`);
+  clearBtn.onclick = ()=>{
+    if(confirm('Clear the current recipe draft?')){
+      state.recipeDraft = { name:'', ingredients:[], cookedWeight:null, servings:1 };
+      render();
+    }
+  };
+  wrap.appendChild(clearBtn);
+
+  return wrap;
+}
+
 function renderLeaderboard(){
   const wrap = el(`<div><div class="card"><div class="card-title">Leaderboard <span class="tag">public</span></div><div id="lb-body"><div class="empty">Loading...</div></div>
     <div class="hint">Score blends how close each person lands to their own calorie, macro, water, supplement, and micronutrient goals. Usernames and scores here are visible to any signed-in user.</div></div></div>`);
@@ -748,30 +1235,34 @@ function computeNutritionTargets(inputs){
   const fiber = Math.round((calories/1000) * 14);
   const sodium = 2300;
   const addedSugar = gender === 'male' ? 36 : 25;
+  const satFat = Math.round((calories * 0.10) / 9); // AHA: keep saturated fat under ~10% of calories
+  const transFat = 2; // AHA guidance: as close to 0 as practical; small buffer for trace/labeling rounding
+  const cholesterol = 300; // general public-health guideline
   const activityWaterBump = (activity==='very'||activity==='extreme') ? 16 : 0;
   const waterOz = Math.round(weightLb/2) + activityWaterBump;
 
-  return { bmr:Math.round(bmr), tdee:Math.round(tdee), calories, protein, fat, carbs, fiber, sodium, addedSugar, waterOz };
+  return { bmr:Math.round(bmr), tdee:Math.round(tdee), calories, protein, fat, carbs, fiber, sodium, addedSugar, satFat, transFat, cholesterol, waterOz };
 }
 
 function renderCalculatorCard(){
+  const p = state.goals.profile || {};
   const card = el(`
     <div class="card">
       <div class="card-title">Daily nutrition calculator <span class="tag">Mifflin-St Jeor</span></div>
       <div class="row">
         <div class="field"><label>Gender</label><select id="c-gender"><option value="male">Male</option><option value="female">Female</option></select></div>
-        <div class="field"><label>Age</label><input id="c-age" type="number" placeholder="years"></div>
+        <div class="field"><label>Age</label><input id="c-age" type="number" placeholder="years" value="${p.age||''}"></div>
       </div>
       <div class="row">
-        <div class="field"><label>Height (in)</label><input id="c-height" type="number" placeholder="e.g. 70"></div>
-        <div class="field"><label>Weight (lb)</label><input id="c-weight" type="number" placeholder="e.g. 175"></div>
+        <div class="field"><label>Height (in)</label><input id="c-height" type="number" placeholder="e.g. 70" value="${p.heightIn||''}"></div>
+        <div class="field"><label>Weight (lb)</label><input id="c-weight" type="number" placeholder="e.g. 175" value="${p.weightLb||''}"></div>
       </div>
       <div class="field">
         <label>Activity level</label>
         <select id="c-activity">
           <option value="sedentary">Sedentary (little/no exercise)</option>
           <option value="light">Lightly active (1-3 days/wk)</option>
-          <option value="moderate" selected>Moderately active (3-5 days/wk)</option>
+          <option value="moderate">Moderately active (3-5 days/wk)</option>
           <option value="very">Very active (6-7 days/wk)</option>
           <option value="extreme">Extremely active (physical job + training)</option>
         </select>
@@ -781,14 +1272,18 @@ function renderCalculatorCard(){
           <label>Goal</label>
           <select id="c-goal"><option value="maintain">Maintain weight</option><option value="lose">Lose weight</option><option value="gain">Gain weight</option></select>
         </div>
-        <div class="field"><label>Rate (lb/week, optional)</label><input id="c-rate" type="number" step="0.25" placeholder="e.g. 1"></div>
+        <div class="field"><label>Rate (lb/week, optional)</label><input id="c-rate" type="number" step="0.25" placeholder="e.g. 1" value="${p.rateLbWk||''}"></div>
       </div>
-      <button class="btn full" id="c-calc">Calculate</button>
+      <button class="btn full" id="c-calc">Apply as my daily targets</button>
       <div id="c-result"></div>
-      <div class="hint">Uses the Mifflin-St Jeor equation (the most accurate widely-validated formula for most adults) for BMR, standard activity multipliers for TDEE, and general public-health guidelines (IOM fiber, AHA added sugar, FDA sodium) for the rest. These are estimates and general guidelines, not a substitute for advice from a doctor or dietitian — especially if you have a medical condition or take medication affected by diet.</div>
+      <div class="hint">Uses the Mifflin-St Jeor equation for BMR, standard activity multipliers for TDEE, and general public-health guidelines (IOM fiber, AHA added sugar/saturated fat, FDA sodium/cholesterol) for the rest. All targets below — including water and every vitamin/mineral — recalculate automatically any time you change a field here. These are estimates, not a substitute for advice from a doctor or dietitian.</div>
     </div>
   `);
-  card.querySelector('#c-calc').onclick = ()=>{
+  card.querySelector('#c-gender').value = p.gender || 'male';
+  card.querySelector('#c-activity').value = p.activity || 'moderate';
+  card.querySelector('#c-goal').value = p.goal || 'maintain';
+
+  const applyLive = async (showToast)=>{
     const gender = card.querySelector('#c-gender').value;
     const age = parseFloat(card.querySelector('#c-age').value);
     const heightIn = parseFloat(card.querySelector('#c-height').value);
@@ -796,9 +1291,10 @@ function renderCalculatorCard(){
     const activity = card.querySelector('#c-activity').value;
     const goal = card.querySelector('#c-goal').value;
     const rateLbWk = parseFloat(card.querySelector('#c-rate').value) || 0;
-    if(!age || !heightIn || !weightLb){ toast('Fill in age, height, and weight.'); return; }
-    const r = computeNutritionTargets({gender,age,heightIn,weightLb,activity,goal,rateLbWk});
     const resDiv = card.querySelector('#c-result');
+    if(!age || !heightIn || !weightLb){ resDiv.innerHTML = ''; return; }
+    const r = computeNutritionTargets({gender,age,heightIn,weightLb,activity,goal,rateLbWk});
+    const micros = computeMicroTargets(gender, age);
     resDiv.innerHTML = '';
     resDiv.appendChild(el(`
       <div class="result-box">
@@ -816,37 +1312,77 @@ function renderCalculatorCard(){
           <div class="macro-cell"><div class="n">${r.addedSugar}g</div><div class="l">Added sugar max</div></div>
         </div>
         <div class="macro-strip">
+          <div class="macro-cell"><div class="n">${r.satFat}g</div><div class="l">Sat fat max</div></div>
+          <div class="macro-cell"><div class="n">${r.cholesterol}mg</div><div class="l">Cholesterol max</div></div>
           <div class="macro-cell"><div class="n">${r.waterOz}oz</div><div class="l">Water</div></div>
         </div>
+        <div class="hint" style="margin-top:12px;">Saved automatically as your targets — including vitamins/minerals scaled to your gender and age.</div>
       </div>
     `));
-    const applyBtn = el(`<button class="btn full" style="margin-top:12px;">Apply these as my daily targets</button>`);
-    applyBtn.onclick = async ()=>{
-      state.goals.calories = r.calories;
-      state.goals.protein = r.protein;
-      state.goals.carbs = r.carbs;
-      state.goals.fat = r.fat;
-      state.goals.water_oz = r.waterOz;
-      await saveGoalsRemote();
-      await pushToLeaderboard();
-      toast('Targets updated');
-      state.tab = 'goals';
-      render();
-    };
-    resDiv.appendChild(applyBtn);
+    state.goals.calories = r.calories;
+    state.goals.protein = r.protein;
+    state.goals.carbs = r.carbs;
+    state.goals.fat = r.fat;
+    state.goals.fiber = r.fiber;
+    state.goals.sugar_limit = r.addedSugar;
+    state.goals.added_sugar_limit = r.addedSugar;
+    state.goals.sodium_limit = r.sodium;
+    state.goals.sat_fat_limit = r.satFat;
+    state.goals.trans_fat_limit = r.transFat;
+    state.goals.cholesterol_limit = r.cholesterol;
+    state.goals.water_oz = r.waterOz;
+    state.goals.micros = { ...state.goals.micros, ...micros };
+    state.goals.profile = { gender, age, heightIn, weightLb, activity, goal, rateLbWk };
+    await saveGoalsRemote();
+    await pushToLeaderboard();
+    if(showToast) toast('Targets updated — water, macros, and micros all recalculated');
   };
+  // Live recalculation: any change to the calculator instantly recomputes and saves every
+  // dependent goal (water included), matching "update automatically" rather than requiring a click.
+  ['#c-gender','#c-age','#c-height','#c-weight','#c-activity','#c-goal','#c-rate'].forEach(sel=>{
+    const input = card.querySelector(sel);
+    input.addEventListener('input', ()=>applyLive(false));
+    input.addEventListener('change', ()=>applyLive(false));
+  });
+  card.querySelector('#c-calc').onclick = ()=>applyLive(true);
+  if(p.age && p.heightIn && p.weightLb) applyLive(false);
   return card;
 }
 
 function renderGoals(){
   const g = state.goals;
   const wrap = el(`<div></div>`);
+
+  const isVisible = state.profile.leaderboard_visible !== false;
+  const privacyCard = el(`
+    <div class="card">
+      <div class="card-title">Privacy</div>
+      <div class="supp-row" style="border:none;">
+        <div class="supp-name">Show me on the public leaderboard</div>
+        <div class="check ${isVisible?'on':''}" id="lb-toggle" style="border-radius:20px;width:40px;height:22px;position:relative;flex-shrink:0;">
+          <div style="position:absolute;top:2px;left:${isVisible?'20px':'2px'};width:18px;height:18px;border-radius:50%;background:${isVisible?'var(--ink)':'var(--fog-dim)'};transition:left .15s;"></div>
+        </div>
+      </div>
+      <div class="hint">Off: your username and score disappear from the leaderboard immediately, but your own logs, goals, and streak keep tracking normally.</div>
+    </div>
+  `);
+  privacyCard.querySelector('#lb-toggle').onclick = async ()=>{
+    const next = !isVisible;
+    await setLeaderboardVisible(state.session.user.id, next);
+    toast(next ? "You're visible on the leaderboard again" : 'Hidden from the leaderboard');
+    render();
+  };
+  wrap.appendChild(privacyCard);
+
   wrap.appendChild(renderCalculatorCard());
   const goalCard = el(`
     <div class="card">
       <div class="card-title">Daily targets</div>
       <div class="row"><div class="field"><label>Calories</label><input id="g-cal" type="number" value="${g.calories}"></div><div class="field"><label>Water (oz)</label><input id="g-water" type="number" value="${g.water_oz}"></div></div>
       <div class="row"><div class="field"><label>Protein (g)</label><input id="g-p" type="number" value="${g.protein}"></div><div class="field"><label>Carbs (g)</label><input id="g-c" type="number" value="${g.carbs}"></div><div class="field"><label>Fat (g)</label><input id="g-f" type="number" value="${g.fat}"></div></div>
+      <div class="row"><div class="field"><label>Fiber (g)</label><input id="g-fiber" type="number" value="${g.fiber}"></div><div class="field"><label>Sugar max (g)</label><input id="g-sugar" type="number" value="${g.sugar_limit}"></div><div class="field"><label>Sodium max (mg)</label><input id="g-sodium" type="number" value="${g.sodium_limit}"></div></div>
+      <div class="row"><div class="field"><label>Sat fat max (g)</label><input id="g-satfat" type="number" value="${g.sat_fat_limit}"></div><div class="field"><label>Trans fat max (g)</label><input id="g-transfat" type="number" value="${g.trans_fat_limit}"></div></div>
+      <div class="row"><div class="field"><label>Added sugar max (g)</label><input id="g-addedsugar" type="number" value="${g.added_sugar_limit}"></div><div class="field"><label>Cholesterol max (mg)</label><input id="g-chol" type="number" value="${g.cholesterol_limit}"></div></div>
       <button class="btn full" id="save-goals">Save targets</button>
     </div>
   `);
@@ -856,6 +1392,13 @@ function renderGoals(){
     g.protein=parseFloat(goalCard.querySelector('#g-p').value)||g.protein;
     g.carbs=parseFloat(goalCard.querySelector('#g-c').value)||g.carbs;
     g.fat=parseFloat(goalCard.querySelector('#g-f').value)||g.fat;
+    g.fiber=parseFloat(goalCard.querySelector('#g-fiber').value)||g.fiber;
+    g.sugar_limit=parseFloat(goalCard.querySelector('#g-sugar').value)||g.sugar_limit;
+    g.sodium_limit=parseFloat(goalCard.querySelector('#g-sodium').value)||g.sodium_limit;
+    g.sat_fat_limit=parseFloat(goalCard.querySelector('#g-satfat').value)||g.sat_fat_limit;
+    g.trans_fat_limit=parseFloat(goalCard.querySelector('#g-transfat').value)||g.trans_fat_limit;
+    g.added_sugar_limit=parseFloat(goalCard.querySelector('#g-addedsugar').value)||g.added_sugar_limit;
+    g.cholesterol_limit=parseFloat(goalCard.querySelector('#g-chol').value)||g.cholesterol_limit;
     await saveGoalsRemote(); await pushToLeaderboard(); toast('Targets saved'); render();
   };
   wrap.appendChild(goalCard);
