@@ -23,9 +23,6 @@
   .brand-name{font-weight:700;font-size:17px;}
   .brand-sub{font-size:10.5px;color:var(--fog-dim);text-transform:uppercase;letter-spacing:1.5px;margin-top:1px;}
   .date-pill{font-size:12px;color:var(--fog);background:var(--panel);border:1px solid var(--line);padding:6px 10px;border-radius:20px;}
-  .who-banner{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:14px 18px 0;font-size:12px;}
-  .who-banner .who-name{color:var(--paper);font-weight:700;}
-  .who-banner button{background:none;border:none;color:var(--fog-dim);font-size:11.5px;cursor:pointer;text-decoration:underline;}
   .nav{display:flex;gap:6px;padding:14px 18px 6px;overflow-x:auto;}
   .nav button{background:transparent;border:1px solid var(--line);color:var(--fog);padding:9px 14px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
   .nav button.active{background:var(--paper);color:var(--ink);border-color:var(--paper);}
@@ -34,25 +31,18 @@
   .card-title{font-weight:700;font-size:15px;margin:0 0 12px;display:flex;align-items:center;justify-content:space-between;}
   .card-title .tag{font-size:10.5px;color:var(--fog-dim);font-weight:400;}
   textarea,input,select{width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--paper);border-radius:10px;padding:11px 12px;font-size:14px;outline:none;}
-  textarea:focus,input:focus,select:focus{border-color:var(--signal);}
   label{font-size:11.5px;color:var(--fog);text-transform:uppercase;letter-spacing:0.8px;display:block;margin-bottom:6px;font-weight:600;}
   .field{margin-bottom:12px;}
   .row{display:flex;gap:10px;}
   .row > *{flex:1;}
   .btn{font-weight:700;font-size:14px;background:var(--signal);color:var(--ink);border:none;border-radius:10px;padding:12px 16px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;}
-  .btn:hover{opacity:0.92;}
-  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--paper);}
-  .btn.small{padding:7px 12px;font-size:12.5px;border-radius:8px;}
   .btn.full{width:100%;}
-  .btn:disabled{opacity:0.5;cursor:default;}
   .entry{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);}
-  .entry:last-child{border-bottom:none;}
   .entry-name{font-size:13.5px;font-weight:600;}
   .entry-meta{font-size:11px;color:var(--fog);margin-top:2px;}
   .entry-cals{font-size:13px;color:var(--signal);font-weight:700;}
   .del-btn{background:none;border:none;color:var(--fog-dim);cursor:pointer;font-size:15px;padding:0 0 0 10px;}
   .del-btn:hover{color:var(--danger);}
-  .empty{color:var(--fog-dim);font-size:13px;text-align:center;padding:20px 0;}
   .ring-row{display:flex;gap:10px;overflow-x:auto;padding:4px 0 14px;}
   .ring-card{flex:0 0 auto;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px;width:104px;text-align:center;}
   .ring{width:64px;height:64px;border-radius:50%;margin:0 auto 8px;position:relative;display:flex;align-items:center;justify-content:center;}
@@ -60,34 +50,16 @@
   .ring-val{font-size:12px;font-weight:700;position:relative;z-index:2;}
   .ring-label{font-size:10.5px;color:var(--fog);text-transform:uppercase;letter-spacing:1px;margin-top:2px;}
   .ring-sub{font-size:10px;color:var(--fog-dim);margin-top:1px;}
-  .result-box{background:var(--panel-2);border:1px solid var(--signal-dim);border-radius:12px;padding:16px;margin-top:14px;}
-  .result-headline{font-size:28px;font-weight:700;color:var(--signal);line-height:1;}
-  .result-sub{font-size:12.5px;color:var(--fog);margin-top:4px;}
-  .macro-strip{display:flex;gap:14px;margin-top:14px;}
-  .macro-cell{flex:1;text-align:center;}
-  .macro-cell .n{font-size:16px;font-weight:700;}
-  .macro-cell .l{font-size:10px;color:var(--fog-dim);text-transform:uppercase;letter-spacing:0.8px;margin-top:2px;}
-  .lb-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);}
-  .lb-name.me{color:var(--signal);}
-  .lb-score{font-size:15px;font-weight:700;color:var(--mint);}
-  .micro-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-  .micro-item{background:var(--panel-2);border-radius:10px;padding:10px 12px;}
-  .micro-name{font-size:11px;color:var(--fog);text-transform:uppercase;letter-spacing:0.5px;}
-  .micro-bar{height:5px;background:var(--line);border-radius:3px;margin:6px 0 4px;overflow:hidden;}
-  .micro-fill{height:100%;background:var(--violet);border-radius:3px;}
-  .micro-val{font-size:11px;color:var(--fog);}
-  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--paper);color:var(--ink);padding:11px 18px;border-radius:24px;font-size:13px;font-weight:600;z-index:100;opacity:0;pointer-events:none;transition:opacity .25s;}
-  .toast.show{opacity:1;}
-  .search-results{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;margin-top:8px;max-height:300px;overflow-y:auto;}
+  .search-results{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;margin-top:8px;max-height:280px;overflow-y:auto; position: absolute; width: 100%; z-index: 50; box-shadow: 0 10px 25px rgba(0,0,0,0.5);}
   .search-item{padding:12px;border-bottom:1px solid var(--line);cursor:pointer;}
   .search-item:hover{background:var(--line);}
-  .chart-container{height:220px;margin-top:14px;}
-  .supp-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);}
-  .check{width:20px;height:20px;border-radius:6px;border:1.5px solid var(--fog-dim);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:13px;}
-  .check.on{background:var(--mint);border-color:var(--mint);color:var(--ink);}
-  .supp-name{font-size:13.5px;font-weight:600;flex:1;}
-  .supp-dose{font-size:11.5px;color:var(--fog);}
-  ::-webkit-scrollbar{height:0;width:6px;} ::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px;}
+  .chart-container{height:220px;margin-top:20px;}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--paper);color:var(--ink);padding:11px 18px;border-radius:24px;font-size:13px;font-weight:600;z-index:100;opacity:0;pointer-events:none;transition:opacity .25s;}
+  .toast.show{opacity:1;}
+  .micro-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;}
+  .micro-item{background:var(--panel-2);border-radius:10px;padding:10px 12px;}
+  .micro-bar{height:5px;background:var(--line);border-radius:3px;margin:6px 0 4px;overflow:hidden;}
+  .micro-fill{height:100%;background:var(--violet);border-radius:3px;}
 </style>
 </head>
 <body>
@@ -96,463 +68,264 @@
 
 <script>
 const SUPABASE_URL = "https://ylpjxopozaoukscimcuu.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_zFadyxaU05CDefBzIpcg9A_7TlhYemv";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlscGp4b3BvemFvdWtzY2ltY3V1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0NDgwNDIsImV4cCI6MjA5OTAyNDA0Mn0.zMjLvvRBKnzfGlM3X1AyW5Xde4ifCo5_OveadamM82o";
 const USDA_API_KEY = "lBJIhFX7M3zueedQ3bcY8mvZJOZNAaehdoARXPcf";
-const CURRENT_TERMS_VERSION = "2026-07-07";
-
-const sb = (SUPABASE_URL.startsWith("http")) ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let state = {
   screen: 'loading',
-  authMode: 'signin',
   session: null,
   profile: null,
   goals: null,
   tab: 'log',
   today: new Date().toISOString().slice(0,10),
-  log: null,
-  recipeDraft: { name:'', ingredients:[], cookedWeight:null, servings:1 },
+  log: { foods:[], water_entries:[], water_oz:0 },
   savedRecipes: [],
-  weightHistory: []
+  weightHistory: [],
+  recipeDraft: { name:'', ingredients:[] }
 };
 
-// --- Utils ---
-function dateKey(d){ return d.toISOString().slice(0,10); }
-function escapeHtml(str){ return str ? String(str).replace(/[&<>"']/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])) : 'N/A'; }
-function el(html){ const d=document.createElement('div'); d.innerHTML=html; return d.firstElementChild; }
-function round1(n){ return n == null ? null : Math.round(n*10)/10; }
-function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
+// --- Core Utils ---
+const el = (h) => { const d=document.createElement('div'); d.innerHTML=h; return d.firstElementChild; };
+const toast = (m) => { const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2500); };
+const escape = (s) => s ? String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])) : 'N/A';
 
-// --- Persistence & Data Fetching ---
+// --- Data Layer ---
 async function initSession(session){
   state.session = session;
-  state.profile = await fetchProfile(session.user.id);
-  state.goals = await fetchGoals(session.user.id);
-  state.log = await fetchDay(session.user.id, state.today);
-  state.savedRecipes = await fetchRecipes();
-  state.weightHistory = await fetchWeights(session.user.id, 100);
+  const {data:prof} = await sb.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+  state.profile = prof;
   
-  if(!state.profile){ state.screen = 'needs-profile'; render(); return; }
-  if(state.profile.terms_version !== CURRENT_TERMS_VERSION){ state.screen = 'reconsent'; render(); return; }
-  
+  if(!prof) { state.screen = 'setup-profile'; render(); return; }
+
+  const {data:g} = await sb.from('goals').select('*').eq('user_id', session.user.id).maybeSingle();
+  state.goals = g || { calories: 2000, profile: {} };
+
+  const {data:l} = await sb.from('logs').select('*').eq('user_id', session.user.id).eq('log_date', state.today).maybeSingle();
+  state.log = l || { foods:[], water_entries:[], water_oz:0 };
+
+  const {data:w} = await sb.from('weights').select('*').eq('user_id', session.user.id).order('log_date', {ascending:false}).limit(30);
+  state.weightHistory = w || [];
+
+  const {data:r} = await sb.from('recipes').select('*').eq('user_id', session.user.id);
+  state.savedRecipes = r || [];
+
   state.screen = 'app';
   render();
 }
 
-async function fetchProfile(uid){ const {data}=await sb.from('profiles').select('*').eq('id',uid).maybeSingle(); return data; }
-async function fetchGoals(uid){
-  const {data}=await sb.from('goals').select('*').eq('user_id',uid).maybeSingle();
-  return data || { user_id:uid, calories:2400, profile:{} }; 
-}
-async function fetchDay(uid, date){
-  const {data}=await sb.from('logs').select('*').eq('user_id',uid).eq('log_date',date).maybeSingle();
-  return data || { foods:[], water_entries:[], water_oz:0, supplements:[] };
-}
-async function fetchWeights(uid, limit){
-  const {data}=await sb.from('weights').select('*').eq('user_id',uid).order('log_date',{ascending:false}).limit(limit);
-  return data || [];
-}
-async function fetchRecipes(){
-  const {data}=await sb.from('recipes').select('*');
-  return data || [];
-}
-
-// --- USDA Persistence Cache ---
-async function searchFoodDB(query){
-  const cacheKey = `usda_cache_${query.toLowerCase()}`;
-  const cached = localStorage.getItem(cacheKey);
-  if(cached) return JSON.parse(cached);
-
-  const url = `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${USDA_API_KEY}&query=${encodeURIComponent(query)}&pageSize=8`;
-  const resp = await fetch(url);
-  if(!resp.ok) throw new Error("Search failed");
-  const data = await resp.json();
-  const results = (data.foods||[]).map(f => {
-    const n = f.foodNutrients || [];
-    const find = (id) => n.find(x => x.nutrientId === id || (x.nutrientName && x.nutrientName.toLowerCase().includes(id.toLowerCase())))?.value;
+async function searchUSDA(query) {
+  const cache = localStorage.getItem(`usda_${query.toLowerCase()}`);
+  if(cache) return JSON.parse(cache);
+  
+  const res = await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${USDA_API_KEY}&query=${encodeURIComponent(query)}&pageSize=10`);
+  const data = await res.json();
+  const results = (data.foods || []).map(f => {
+    const nut = f.foodNutrients || [];
+    const get = (id) => nut.find(n => n.nutrientId === id || n.nutrientName?.toLowerCase().includes(id.toLowerCase()))?.value || 0;
     return {
-      name: f.description,
-      brand: f.brandOwner || '',
-      per100g: {
-        calories: find('energy') || 0,
-        protein: find('protein') || 0,
-        fat: find('total lipid') || 0,
-        carbs: find('carbohydrate') || 0,
-        fiber: find('fiber') || 0,
-        sugar: find('sugars') || 0,
-        sodium: find('sodium') || 0,
-        sat_fat: find('fatty acids, total saturated') || 0,
-        trans_fat: find('fatty acids, total trans') || 0,
-        cholesterol: find('cholesterol') || 0,
-        micros: {
-          "Vitamin C (mg)": find('vitamin c'),
-          "Vitamin D (mcg)": find('vitamin d'),
-          "Calcium (mg)": find('calcium'),
-          "Iron (mg)": find('iron'),
-          "Potassium (mg)": find('potassium'),
-          "Magnesium (mg)": find('magnesium'),
-          "Zinc (mg)": find('zinc'),
-          "Vitamin B12 (mcg)": find('vitamin b-12')
-        }
-      }
+      name: f.description, brand: f.brandOwner || 'USDA',
+      per100: { calories: get('energy'), protein: get('protein'), fat: get('total lipid'), carbs: get('carbohydrate'), fiber: get('fiber'), sodium: get('sodium') }
     };
   });
-  localStorage.setItem(cacheKey, JSON.stringify(results));
+  localStorage.setItem(`usda_${query.toLowerCase()}`, JSON.stringify(results));
   return results;
 }
 
-// --- Reusable Search Component ---
-function renderSearch(placeholder, onSelect, showSaved = false) {
-  const container = el(`<div class="field"></div>`);
+// --- Shared Search Component ---
+function renderSearch(placeholder, onSelect, includeRecipes = false) {
+  const container = el(`<div style="position:relative"></div>`);
   const input = el(`<input placeholder="${placeholder}" autocomplete="off">`);
-  const resultsBox = el(`<div class="search-results" style="display:none"></div>`);
+  const results = el(`<div class="search-results" style="display:none"></div>`);
   
-  let timer;
+  let debounce;
   input.oninput = () => {
-    clearTimeout(timer);
-    const q = input.value.trim();
-    if(q.length < 2) { resultsBox.style.display = 'none'; return; }
-    timer = setTimeout(async () => {
-      resultsBox.innerHTML = `<div class="empty">Searching...</div>`;
-      resultsBox.style.display = 'block';
-      
-      let list = [];
-      // Include Saved Recipes if requested
-      if(showSaved){
-        const matchedRecipes = state.savedRecipes.filter(r => r.name.toLowerCase().includes(q.toLowerCase()));
-        list = matchedRecipes.map(r => ({ ...r, type: 'recipe' }));
+    clearTimeout(debounce);
+    if(input.value.length < 2) { results.style.display = 'none'; return; }
+    debounce = setTimeout(async () => {
+      results.innerHTML = `<div class="empty">Searching...</div>`;
+      results.style.display = 'block';
+      let list = await searchUSDA(input.value);
+      if(includeRecipes) {
+        const matches = state.savedRecipes.filter(r => r.name.toLowerCase().includes(input.value.toLowerCase()));
+        list = [...matches.map(m => ({...m, isRecipe: true})), ...list];
       }
-
-      try {
-        const usda = await searchFoodDB(q);
-        list = [...list, ...usda.map(f => ({ ...f, type: 'usda' }))];
-        
-        resultsBox.innerHTML = '';
-        if(!list.length) resultsBox.innerHTML = `<div class="empty">No results</div>`;
-        
-        list.forEach(item => {
-          const row = el(`<div class="search-item">
-            <div class="entry-name">${escapeHtml(item.name)}</div>
-            <div class="entry-meta">${item.type === 'recipe' ? 'Homemade Recipe' : escapeHtml(item.brand || 'USDA Database')}</div>
-          </div>`);
-          row.onclick = () => {
-            resultsBox.style.display = 'none';
-            input.value = '';
-            onSelect(item);
-          };
-          resultsBox.appendChild(row);
-        });
-      } catch(e) {
-        resultsBox.innerHTML = `<div class="empty">Error fetching results</div>`;
-      }
+      results.innerHTML = '';
+      list.forEach(item => {
+        const row = el(`<div class="search-item"><b>${escape(item.name)}</b><div class="entry-meta">${item.isRecipe ? 'Saved Recipe' : escape(item.brand)}</div></div>`);
+        row.onclick = () => { onSelect(item); results.style.display='none'; input.value=''; };
+        results.appendChild(row);
+      });
     }, 400);
   };
-
-  container.appendChild(input);
-  container.appendChild(resultsBox);
+  container.append(input, results);
   return container;
 }
 
-// --- Calculation Logic ---
-function computeTotals(day){
-  const t = {calories:0,protein:0,carbs:0,fat:0,fiber:0,sugar:0,sodium:0,sat_fat:0,trans_fat:0,cholesterol:0,micros:{}};
-  (day.foods||[]).forEach(f => {
-    t.calories += f.calories||0; t.protein += f.protein_g||0; t.carbs += f.carbs_g||0; t.fat += f.fat_g||0;
-    t.fiber += f.fiber_g||0; t.sugar += f.sugar_g||0; t.sodium += f.sodium_mg||0;
-    t.sat_fat += f.sat_fat_g||0; t.trans_fat += f.trans_fat_g||0; t.cholesterol += f.cholesterol_mg||0;
-    if(f.micros) Object.keys(f.micros).forEach(m => {
-      if(f.micros[m] != null) t.micros[m] = (t.micros[m]||0) + f.micros[m];
-    });
-  });
-  return t;
-}
-
-function getScore(day, goals) {
-  const t = computeTotals(day);
-  const parts = [];
-  const hasFood = day.foods.length > 0;
-
-  const closeness = (a, b) => b ? Math.max(0, 100 - (Math.abs(a - b) / b * 100)) : null;
-  const cap = (a, b) => b ? Math.min(100, (a / b * 100)) : null;
-  const limit = (a, b) => {
-    if(!b) return null;
-    if(!hasFood) return 0; // Fix: Limits start at 0% score until you eat
-    return a <= b ? 100 : Math.max(0, 100 - ((a - b) / b * 100));
-  };
-
-  parts.push(closeness(t.calories, goals.calories));
-  parts.push(closeness(t.protein, goals.protein));
-  parts.push(cap(t.fiber, goals.fiber));
-  parts.push(limit(t.sugar, goals.sugar_limit));
-  parts.push(limit(t.sodium, goals.sodium_limit));
-  parts.push(cap(day.water_oz, goals.water_oz));
-
-  const valid = parts.filter(p => p !== null);
-  return Math.round(valid.reduce((a, b) => a + b, 0) / valid.length);
-}
-
-// --- Main Views ---
+// --- UI Views ---
 function renderLog(){
   const wrap = el(`<div></div>`);
-  const totals = computeTotals(state.log);
-  const score = getScore(state.log, state.goals);
+  const totals = state.log.foods.reduce((acc, f) => {
+    acc.c += f.calories || 0; acc.p += f.protein || 0; acc.f += f.fat || 0; acc.fb += f.fiber || 0;
+    return acc;
+  }, {c:0, p:0, f:0, fb:0});
 
-  // Score & Rings
-  const rings = el(`<div class="ring-row"></div>`);
-  const addRing = (label, val, target, color) => {
-    const pct = target ? Math.round((val/target)*100) : 0;
-    rings.appendChild(el(`<div class="ring-card">
-      <div class="ring" style="--pct:${Math.min(100,pct)};--ring-color:var(${color});"><div class="ring-val">${pct}%</div></div>
-      <div class="ring-label">${label}</div>
-      <div class="ring-sub">${Math.round(val)} / ${target || '—'}</div>
-    </div>`));
-  };
+  // Calculate Score Fix: If no food, score is 0.
+  let score = 0;
+  if(state.log.foods.length > 0) {
+    const cScore = Math.max(0, 100 - (Math.abs(totals.c - state.goals.calories) / state.goals.calories * 100));
+    const pScore = Math.min(100, (totals.p / state.goals.protein * 100));
+    score = Math.round((cScore + pScore) / 2);
+  }
 
-  addRing('Score', score, 100, '--mint');
-  addRing('Cals', totals.calories, state.goals.calories, '--ember');
-  addRing('Protein', totals.protein, state.goals.protein, '--signal');
-  addRing('Fiber', totals.fiber, state.goals.fiber, '--violet');
-  addRing('Water', state.log.water_oz, state.goals.water_oz, '--signal');
+  const rings = el(`<div class="ring-row">
+    <div class="ring-card"><div class="ring" style="--pct:${score};--ring-color:var(--mint)"><div class="ring-val">${score}%</div></div><div class="ring-label">Score</div></div>
+    <div class="ring-card"><div class="ring" style="--pct:${Math.min(100,(totals.c/state.goals.calories)*100)};--ring-color:var(--ember)"><div class="ring-val">${Math.round(totals.c)}</div></div><div class="ring-label">Calories</div></div>
+    <div class="ring-card"><div class="ring" style="--pct:${Math.min(100,(totals.p/state.goals.protein)*100)};--ring-color:var(--signal)"><div class="ring-val">${Math.round(totals.p)}g</div></div><div class="ring-label">Protein</div></div>
+    <div class="ring-card"><div class="ring" style="--pct:${Math.min(100,(state.log.water_oz/state.goals.water_oz)*100)};--ring-color:var(--signal)"><div class="ring-val">${state.log.water_oz}oz</div></div><div class="ring-label">Water</div></div>
+  </div>`);
   wrap.appendChild(rings);
 
-  // Weigh-in & Graph
-  const weightCard = el(`<div class="card">
-    <div class="card-title">Weight Tracking</div>
-    <div class="row">
-      <input id="w-val" type="number" step="0.1" placeholder="lb">
-      <button class="btn" id="w-btn">Log Weight</button>
-    </div>
-    <div class="chart-container"><canvas id="weightChart"></canvas></div>
+  // Weight Card
+  const weightCard = el(`<div class="card"><div class="card-title">Weight Trend</div>
+    <div class="row"><input id="w-input" type="number" step="0.1" placeholder="Today's lb"><button class="btn" id="w-save">Log</button></div>
+    <div class="chart-container"><canvas id="w-chart"></canvas></div>
   </div>`);
   wrap.appendChild(weightCard);
 
-  // Food Search (Integrated)
-  const searchCard = el(`<div class="card"><div class="card-title">Add Food</div></div>`);
-  searchCard.appendChild(renderSearch("Search USDA or Saved Recipes...", async (item) => {
-    let food;
-    if(item.type === 'recipe') {
-      const perServ = item.ingredients.reduce((acc, ing) => {
-        const m = ing.grams / 100;
-        acc.calories += (ing.per100g.calories||0)*m;
-        acc.protein += (ing.per100g.protein||0)*m;
-        acc.carbs += (ing.per100g.carbs||0)*m;
-        acc.fat += (ing.per100g.fat||0)*m;
-        return acc;
-      }, {calories:0,protein:0,carbs:0,fat:0});
-      food = { 
-        id: Math.random().toString(36), name: item.name, 
-        calories: perServ.calories/item.servings, 
-        protein_g: perServ.protein/item.servings,
-        carbs_g: perServ.carbs/item.servings,
-        fat_g: perServ.fat/item.servings
-      };
+  // Food Logging
+  const foodCard = el(`<div class="card"><div class="card-title">Log Food</div></div>`);
+  foodCard.appendChild(renderSearch("Search foods or recipes...", async (item) => {
+    let entry;
+    if(item.isRecipe) {
+      entry = { name: item.name, calories: item.per100.calories, protein: item.per100.protein, fat: item.per100.fat, fiber: item.per100.fiber };
     } else {
-      const g = prompt(`How many grams?`, "100");
+      const g = prompt(`Grams of ${item.name}?`, "100");
       if(!g) return;
       const m = parseFloat(g)/100;
-      food = {
-        id: Math.random().toString(36), name: `${item.name} (${g}g)`,
-        calories: item.per100g.calories*m, protein_g: item.per100g.protein*m,
-        carbs_g: item.per100g.carbs*m, fat_g: item.per100g.fat*m,
-        fiber_g: item.per100g.fiber*m, sugar_g: item.per100g.sugar*m,
-        sodium_mg: item.per100g.sodium*m, micros: item.per100g.micros
-      };
+      entry = { name: `${item.name} (${g}g)`, calories: item.per100.calories*m, protein: item.per100.protein*m, fat: item.per100.fat*m, fiber: item.per100.fiber*m };
     }
-    state.log.foods.push(food);
-    await saveDay();
+    state.log.foods.push(entry);
+    await sb.from('logs').upsert({ user_id: state.session.user.id, log_date: state.today, foods: state.log.foods, water_oz: state.log.water_oz });
     render();
   }, true));
-  wrap.appendChild(searchCard);
+  wrap.appendChild(foodCard);
 
   // Food List
-  const listCard = el(`<div class="card"><div class="card-title">Today's Log</div><div id="food-list"></div></div>`);
-  state.log.foods.forEach(f => {
-    const row = el(`<div class="entry">
-      <div><div class="entry-name">${escapeHtml(f.name)}</div><div class="entry-meta">${Math.round(f.calories)} kcal</div></div>
-      <button class="del-btn">✕</button>
-    </div>`);
-    row.querySelector('button').onclick = async () => {
-      state.log.foods = state.log.foods.filter(x => x.id !== f.id);
-      await saveDay(); render();
-    };
-    listCard.querySelector('#food-list').appendChild(row);
+  const listCard = el(`<div class="card"><div class="card-title">Today's Entries</div><div id="log-list"></div></div>`);
+  state.log.foods.forEach((f, i) => {
+    const row = el(`<div class="entry"><div><div class="entry-name">${escape(f.name)}</div><div class="entry-meta">${Math.round(f.calories)} kcal</div></div><button class="del-btn">✕</button></div>`);
+    row.querySelector('.del-btn').onclick = async () => { state.log.foods.splice(i, 1); await sb.from('logs').update({foods: state.log.foods}).eq('user_id', state.session.user.id).eq('log_date', state.today); render(); };
+    listCard.querySelector('#log-list').appendChild(row);
   });
   wrap.appendChild(listCard);
 
-  setTimeout(initWeightChart, 50);
-  
-  weightCard.querySelector('#w-btn').onclick = async () => {
-    const val = parseFloat(weightCard.querySelector('#w-val').value);
+  // Weight Logic
+  setTimeout(() => {
+    const ctx = document.getElementById('w-chart')?.getContext('2d');
+    if(!ctx) return;
+    new Chart(ctx, {
+      type: 'line',
+      data: { labels: state.weightHistory.map(w => w.log_date.slice(5)).reverse(), datasets: [{ label: 'Weight', data: state.weightHistory.map(w => w.weight_lb).reverse(), borderColor: '#48C7FF', fill: true, backgroundColor: 'rgba(72,199,255,0.1)', tension: 0.3 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+  }, 100);
+
+  weightCard.querySelector('#w-save').onclick = async () => {
+    const val = parseFloat(weightCard.querySelector('#w-input').value);
     if(!val) return;
     await sb.from('weights').upsert({ user_id: state.session.user.id, log_date: state.today, weight_lb: val });
-    state.weightHistory = await fetchWeights(state.session.user.id, 100);
-    toast("Weight logged");
-    render();
+    toast("Weight Logged");
+    initSession(state.session);
   };
 
   return wrap;
-}
-
-function initWeightChart() {
-  const ctx = document.getElementById('weightChart')?.getContext('2d');
-  if(!ctx) return;
-  const data = [...state.weightHistory].reverse();
-  new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: data.map(d => d.log_date.slice(5)),
-      datasets: [{
-        label: 'Weight (lb)',
-        data: data.map(d => d.weight_lb),
-        borderColor: '#48C7FF',
-        backgroundColor: '#48C7FF33',
-        fill: true,
-        tension: 0.3
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: { x: { grid: { display: false } }, y: { beginAtZero: false } }
-    }
-  });
 }
 
 function renderRecipes() {
   const wrap = el(`<div></div>`);
-  
-  // Recipe Builder
-  const buildCard = el(`<div class="card">
-    <div class="card-title">Create Homemade Recipe</div>
-    <div class="field"><label>Recipe Name</label><input id="rc-name" placeholder="e.g. Grandma's Stew"></div>
-    <div id="rc-search-container"></div>
-    <div id="rc-ings" style="margin: 12px 0"></div>
-    <div class="row">
-      <div class="field"><label>Cooked Weight (g)</label><input id="rc-weight" type="number"></div>
-      <div class="field"><label>Servings</label><input id="rc-servings" type="number" value="1"></div>
-    </div>
-    <button class="btn full" id="rc-save">Save Recipe</button>
+  const builder = el(`<div class="card"><div class="card-title">Recipe Builder</div>
+    <div class="field"><label>Recipe Name</label><input id="rn" placeholder="e.g. Protein Chili"></div>
+    <div id="rs"></div>
+    <div id="ri" style="margin: 10px 0"></div>
+    <button class="btn full" id="rb">Save Recipe</button>
   </div>`);
   
-  buildCard.querySelector('#rc-search-container').appendChild(renderSearch("Add ingredient...", (item) => {
+  builder.querySelector('#rs').appendChild(renderSearch("Add ingredient...", (item) => {
     const g = prompt(`Grams of ${item.name}?`, "100");
     if(!g) return;
-    state.recipeDraft.ingredients.push({ ...item, grams: parseFloat(g) });
+    state.recipeDraft.ingredients.push({...item, grams: parseFloat(g)});
     render();
   }));
 
   state.recipeDraft.ingredients.forEach((ing, i) => {
-    const row = el(`<div class="entry">
-      <div class="entry-name">${ing.name} (${ing.grams}g)</div>
-      <button class="del-btn">✕</button>
-    </div>`);
-    row.querySelector('button').onclick = () => { state.recipeDraft.ingredients.splice(i,1); render(); };
-    buildCard.querySelector('#rc-ings').appendChild(row);
+    const row = el(`<div class="entry"><div>${escape(ing.name)} (${ing.grams}g)</div><button class="del-btn">✕</button></div>`);
+    row.onclick = () => { state.recipeDraft.ingredients.splice(i,1); render(); };
+    builder.querySelector('#ri').appendChild(row);
   });
 
-  buildCard.querySelector('#rc-save').onclick = async () => {
-    const name = buildCard.querySelector('#rc-name').value;
-    if(!name || !state.recipeDraft.ingredients.length) return toast("Missing name or ingredients");
-    const {error} = await sb.from('recipes').insert({
-      user_id: state.session.user.id,
-      name,
-      ingredients: state.recipeDraft.ingredients,
-      cooked_weight: buildCard.querySelector('#rc-weight').value,
-      servings: buildCard.querySelector('#rc-servings').value
-    });
-    if(!error) {
-      toast("Recipe Saved!");
-      state.recipeDraft = { name:'', ingredients:[], cookedWeight:null, servings:1 };
-      state.savedRecipes = await fetchRecipes();
-      render();
-    }
+  builder.querySelector('#rb').onclick = async () => {
+    const name = builder.querySelector('#rn').value;
+    if(!name || !state.recipeDraft.ingredients.length) return toast("Missing info");
+    const totals = state.recipeDraft.ingredients.reduce((acc, ing) => {
+      const m = ing.grams/100;
+      acc.c += ing.per100.calories*m; acc.p += ing.per100.protein*m; acc.f += ing.per100.fat*m; acc.fb += ing.per100.fiber*m;
+      return acc;
+    }, {c:0, p:0, f:0, fb:0});
+    await sb.from('recipes').insert({ user_id: state.session.user.id, name, ingredients: state.recipeDraft.ingredients, per100: totals });
+    state.recipeDraft = { name: '', ingredients: [] };
+    toast("Recipe Saved");
+    initSession(state.session);
   };
-  wrap.appendChild(buildCard);
+  wrap.appendChild(builder);
 
-  // Saved Recipes List
-  const listCard = el(`<div class="card"><div class="card-title">Your Recipes</div><div id="saved-list"></div></div>`);
+  const list = el(`<div class="card"><div class="card-title">Saved Recipes</div><div id="sl"></div></div>`);
   state.savedRecipes.forEach(r => {
-    const row = el(`<div class="entry">
-      <div class="entry-name">${escapeHtml(r.name)}</div>
-      <button class="del-btn">✕</button>
-    </div>`);
-    row.querySelector('button').onclick = async () => {
-      await sb.from('recipes').delete().eq('id', r.id);
-      state.savedRecipes = await fetchRecipes();
-      render();
-    };
-    listCard.querySelector('#saved-list').appendChild(row);
+    const row = el(`<div class="entry"><div>${escape(r.name)}</div><button class="del-btn">✕</button></div>`);
+    row.querySelector('.del-btn').onclick = async () => { await sb.from('recipes').delete().eq('id', r.id); initSession(state.session); };
+    list.querySelector('#sl').appendChild(row);
   });
-  wrap.appendChild(listCard);
-
+  wrap.appendChild(list);
   return wrap;
 }
 
-function renderGoals() {
+function renderGoals(){
   const wrap = el(`<div></div>`);
   const p = state.goals.profile || {};
-
-  const calcCard = el(`<div class="card">
-    <div class="card-title">Nutrition Calculator</div>
-    <div class="row">
-      <div class="field"><label>Age</label><input id="c-age" type="number" value="${p.age||''}"></div>
-      <div class="field"><label>Gender</label><select id="c-gen"><option value="male" ${p.gender==='male'?'selected':''}>Male</option><option value="female" ${p.gender==='female'?'selected':''}>Female</option></select></div>
-    </div>
-    <div class="row">
-      <div class="field"><label>Height (in)</label><input id="c-h" type="number" value="${p.heightIn||''}"></div>
-      <div class="field"><label>Weight (lb)</label><input id="c-w" type="number" value="${p.weightLb||''}"></div>
-    </div>
-    <div class="field"><label>Activity</label><select id="c-act">
-      <option value="1.2" ${p.activity==='1.2'?'selected':''}>Sedentary</option>
-      <option value="1.375" ${p.activity==='1.375'?'selected':''}>Light</option>
-      <option value="1.55" ${p.activity==='1.55'?'selected':''}>Moderate</option>
-      <option value="1.725" ${p.activity==='1.725'?'selected':''}>Very Active</option>
-    </select></div>
-    <button class="btn full" id="c-save">Recalculate & Save Targets</button>
+  const calc = el(`<div class="card"><div class="card-title">Nutrition Calculator</div>
+    <div class="row"><div class="field"><label>Age</label><input id="ca" type="number" value="${p.age||''}"></div><div class="field"><label>Weight (lb)</label><input id="cw" type="number" value="${p.weight||''}"></div></div>
+    <div class="row"><div class="field"><label>Height (in)</label><input id="ch" type="number" value="${p.height||''}"></div><div class="field"><label>Gender</label><select id="cg"><option value="male" ${p.gender==='male'?'selected':''}>Male</option><option value="female" ${p.gender==='female'?'selected':''}>Female</option></select></div></div>
+    <button class="btn full" id="cs">Recalculate & Save</button>
   </div>`);
 
-  calcCard.querySelector('#c-save').onclick = async () => {
-    const age = parseInt(calcCard.querySelector('#c-age').value);
-    const gender = calcCard.querySelector('#c-gen').value;
-    const height = parseFloat(calcCard.querySelector('#c-h').value);
-    const weight = parseFloat(calcCard.querySelector('#c-w').value);
-    const act = parseFloat(calcCard.querySelector('#c-act').value);
-
-    if(!age || !height || !weight) return toast("Fill in all fields");
-
+  calc.querySelector('#cs').onclick = async () => {
+    const age = parseInt(calc.querySelector('#ca').value);
+    const weight = parseFloat(calc.querySelector('#cw').value);
+    const height = parseFloat(calc.querySelector('#ch').value);
+    const gen = calc.querySelector('#cg').value;
+    
     // Mifflin-St Jeor
-    const bmr = (10 * (weight * 0.4535)) + (6.25 * (height * 2.54)) - (5 * age) + (gender === 'male' ? 5 : -161);
-    const tdee = Math.round(bmr * act);
+    const bmr = (10 * (weight * 0.4535)) + (6.25 * (height * 2.54)) - (5 * age) + (gen === 'male' ? 5 : -161);
+    const tdee = Math.round(bmr * 1.4);
 
     state.goals.calories = tdee;
-    state.goals.protein = Math.round(weight * 0.8);
-    state.goals.fat = Math.round((tdee * 0.25) / 9);
-    state.goals.carbs = Math.round((tdee - (state.goals.protein * 4) - (state.goals.fat * 9)) / 4);
+    state.goals.protein = Math.round(weight * 0.9);
     state.goals.water_oz = Math.round(weight * 0.6);
-    state.goals.fiber = Math.round((tdee / 1000) * 14);
-    state.goals.profile = { age, gender, heightIn: height, weightLb: weight, activity: act.toString() };
+    state.goals.profile = { age, weight, height, gender: gen };
 
-    await sb.from('goals').upsert(state.goals);
-    toast("Goals Updated!");
+    await sb.from('goals').upsert({ user_id: state.session.user.id, ...state.goals });
+    toast("Goals Saved Locally & Remotely");
     render();
   };
-
-  wrap.appendChild(calcCard);
-
-  const manualCard = el(`<div class="card">
-    <div class="card-title">Current Targets</div>
-    <div class="row">
-      <div class="field"><label>Calories</label><input type="number" value="${state.goals.calories}"></div>
-      <div class="field"><label>Water (oz)</label><input type="number" value="${state.goals.water_oz}"></div>
-    </div>
-    <div class="row">
-       <div class="field"><label>Protein</label><input type="number" value="${state.goals.protein}"></div>
-       <div class="field"><label>Fiber</label><input type="number" value="${state.goals.fiber}"></div>
-    </div>
-  </div>`);
-  wrap.appendChild(manualCard);
-
+  wrap.appendChild(calc);
+  
+  const privacy = el(`<div class="card"><div class="card-title">Privacy</div><div class="entry">Show me on Leaderboard <button class="btn small" id="pt">${state.profile.leaderboard_visible ? 'ON' : 'OFF'}</button></div></div>`);
+  privacy.querySelector('#pt').onclick = async () => {
+    const next = !state.profile.leaderboard_visible;
+    await sb.from('profiles').update({ leaderboard_visible: next }).eq('id', state.session.user.id);
+    initSession(state.session);
+  };
+  wrap.appendChild(privacy);
   return wrap;
 }
 
@@ -560,60 +333,47 @@ function renderGoals() {
 function render(){
   const app = document.getElementById('app');
   app.innerHTML = '';
-  
-  if(state.screen === 'loading') { app.innerHTML = `<div class="empty">Loading...</div>`; return; }
+  if(state.screen === 'loading') { app.innerHTML = `<div class="empty">Authenticating...</div>`; return; }
   if(state.screen === 'auth') { app.appendChild(renderAuth()); return; }
+  if(state.screen === 'setup-profile') { app.appendChild(renderSetup()); return; }
 
-  app.innerHTML = `
-    <div class="topbar">
-      <div class="brand"><div class="brand-mark">FL</div><div><div class="brand-name">Fuel Ledger</div><div class="brand-sub">Health OS</div></div></div>
-      <div class="date-pill">${state.today}</div>
-    </div>
+  app.innerHTML = `<div class="topbar"><div class="brand"><div class="brand-mark">FL</div><div><div class="brand-name">Fuel Ledger</div><div class="brand-sub">Health OS</div></div></div><div class="date-pill">${state.today}</div></div>
     <div class="nav">
-      <button class="${state.tab==='log'?'active':''}" onclick="state.tab='log';render()">Daily Log</button>
+      <button class="${state.tab==='log'?'active':''}" onclick="state.tab='log';render()">Log</button>
       <button class="${state.tab==='recipes'?'active':''}" onclick="state.tab='recipes';render()">Recipes</button>
       <button class="${state.tab==='goals'?'active':''}" onclick="state.tab='goals';render()">Goals</button>
-    </div>
-    <div class="view" id="view"></div>
-  `;
+    </div><div class="view" id="view"></div>`;
 
-  const view = document.getElementById('view');
-  if(state.tab === 'log') view.appendChild(renderLog());
-  if(state.tab === 'recipes') view.appendChild(renderRecipes());
-  if(state.tab === 'goals') view.appendChild(renderGoals());
-}
-
-async function saveDay() {
-  await sb.from('logs').upsert({
-    user_id: state.session.user.id,
-    log_date: state.today,
-    foods: state.log.foods,
-    water_oz: state.log.water_oz
-  });
+  const v = document.getElementById('view');
+  if(state.tab === 'log') v.appendChild(renderLog());
+  if(state.tab === 'recipes') v.appendChild(renderRecipes());
+  if(state.tab === 'goals') v.appendChild(renderGoals());
 }
 
 function renderAuth() {
-  const wrap = el(`<div style="padding:40px 20px; text-align:center;">
-    <div class="brand-mark" style="width:60px; height:60px; margin:0 auto 20px; font-size:24px;">FL</div>
-    <h2>Welcome to Fuel Ledger</h2>
-    <div class="field"><input id="email" placeholder="Email"></div>
-    <div class="field"><input id="pass" type="password" placeholder="Password"></div>
-    <button class="btn full" id="auth-btn">Sign In / Up</button>
+  const wrap = el(`<div style="padding:100px 20px; text-align:center;"><div class="brand-mark" style="width:60px;height:60px;margin:0 auto 20px;font-size:24px">FL</div><h2>Fuel Ledger</h2>
+    <div class="field"><input id="ae" placeholder="Email"></div><div class="field"><input id="ap" type="password" placeholder="Password"></div>
+    <button class="btn full" id="as">Sign In / Sign Up</button>
   </div>`);
-  wrap.querySelector('#auth-btn').onclick = async () => {
-    const email = wrap.querySelector('#email').value;
-    const password = wrap.querySelector('#pass').value;
-    const {data, error} = await sb.auth.signInWithPassword({ email, password });
+  wrap.querySelector('#as').onclick = async () => {
+    const email = wrap.querySelector('#ae').value; const password = wrap.querySelector('#ap').value;
+    const {error} = await sb.auth.signInWithPassword({ email, password });
     if(error) await sb.auth.signUp({ email, password });
   };
   return wrap;
 }
 
-// --- Init ---
-sb.auth.onAuthStateChange((evt, session) => {
-  if(session) initSession(session);
-  else { state.screen = 'auth'; render(); }
-});
+function renderSetup() {
+  const wrap = el(`<div style="padding:100px 20px; text-align:center;"><h2>Choose Username</h2><div class="field"><input id="un" placeholder="Username"></div><button class="btn full" id="us">Finish</button></div>`);
+  wrap.querySelector('#us').onclick = async () => {
+    const username = wrap.querySelector('#un').value;
+    await sb.from('profiles').insert({ id: state.session.user.id, username });
+    initSession(state.session);
+  };
+  return wrap;
+}
+
+sb.auth.onAuthStateChange((event, session) => { if(session) initSession(session); else { state.screen='auth'; render(); } });
 </script>
 </body>
 </html>
