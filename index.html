@@ -301,9 +301,12 @@ function closeness(actual, target){ if(!target||target<=0) return null; const d=
 function capPct(actual, target){ if(!target||target<=0) return null; return Math.min(100,(actual/target)*100); }
 function underLimitScore(actual, limit){
   if(!limit || limit<=0) return null;
-  if(actual<=limit) return 100;
-  const overPct = (actual-limit)/limit*100;
-  return Math.max(0, 100 - overPct*1.6);
+  // Proportional to how much of the daily budget remains, not a pass/fail cliff.
+  // 0 consumed = 100 (full headroom); at or past the limit = 0. A single food's
+  // contribution should visibly move this number, not pin it at 100 just for being
+  // under the full day's allowance.
+  const usedPct = (actual/limit)*100;
+  return Math.max(0, 100 - usedPct);
 }
 function computeTotals(day){
   const t={calories:0,protein:0,carbs:0,fat:0,fiber:0,sugar:0,sodium:0,
