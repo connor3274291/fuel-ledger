@@ -178,17 +178,12 @@ function uid(){ return Math.random().toString(36).slice(2,9); }
 function escapeHtml(str){ if(str==null) return ''; return String(str).replace(/[&<>"']/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
 function el(html){ const d=document.createElement('div'); d.innerHTML=html; return d.firstElementChild; }
 function round1(n){ return Math.round(n*10)/10; }
-// Parses a form field to a number, but preserves "the user left this blank" as null rather
-// than silently collapsing it to 0 — that distinction is what lets the UI show "N/A" for
-// nutrients a food doesn't report, instead of falsely implying the food has zero of it.
-function parseOrNull(v){ const s=(v==null?'':String(v)).trim(); if(s==='') return null; const n=parseFloat(s); return isNaN(n)?null:n; }
-// Formats a nutrient value for display: "N/A" when not reported, otherwise the rounded number + unit.
-function fmtNutrient(v, unit){ return (v==null) ? 'N/A' : Math.round(v)+(unit||''); }
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(window.__t); window.__t=setTimeout(()=>t.classList.remove('show'),2200); }
 
 /* ---------------- Data layer (Supabase) ---------------- */
 async function fetchProfile(userId){
-  const { data } = await sb.from('profiles').select('*').eq('id', userId).maybeSingle();
+  const { data, error } = await sb.from('profiles').select('*').eq('id', userId).maybeSingle();
+  if(error) console.error('fetchProfile failed:', error);
   return data;
 }
 async function createProfile(userId, username){
@@ -201,7 +196,8 @@ async function createProfile(userId, username){
   localStorage.removeItem('fl_pending_username');
 }
 async function setLeaderboardVisible(userId, visible){
-  await sb.from('profiles').update({ leaderboard_visible: visible }).eq('id', userId);
+  const { error } = await sb.from('profiles').update({ leaderboard_visible: visible }).eq('id', userId);
+  if(error){ console.error('setLeaderboardVisible failed:', error); toast("Didn't save that preference — " + (error.message||'check schema.sql')); return; }
   state.profile.leaderboard_visible = visible;
   if(!visible) await sb.from('leaderboard').delete().eq('user_id', userId).eq('log_date', state.today);
   else await pushToLeaderboard();
@@ -212,10 +208,18 @@ async function recordTermsAcceptance(userId){
   }).eq('id', userId);
 }
 async function fetchGoals(userId){
-  const { data } = await sb.from('goals').select('*').eq('user_id', userId).maybeSingle();
+  const { data, error } = await sb.from('goals').select('*').eq('user_id', userId).maybeSingle();
+  if(error){
+    console.error('fetchGoals failed:', error);
+    toast("Couldn't load your goals — " + (error.message || 'run the latest schema.sql in Supabase'));
+  }
   if(!data){
     const g = { user_id:userId, ...DEFAULT_GOALS };
-    await sb.from('goals').upsert(g);
+    const { error: insertErr } = await sb.from('goals').upsert(g);
+    if(insertErr){
+      console.error('initial goals insert failed:', insertErr);
+      toast("Couldn't create your goals row — " + (insertErr.message || 'run the latest schema.sql in Supabase'));
+    }
     return g;
   }
   // Backfill any fields that predate this update, so older accounts don't break.
@@ -249,7 +253,11 @@ async function saveGoalsRemote(){
   return !error;
 }
 async function fetchDay(userId, dateStr){
-  const { data } = await sb.from('logs').select('*').eq('user_id', userId).eq('log_date', dateStr).maybeSingle();
+  const { data, error } = await sb.from('logs').select('*').eq('user_id', userId).eq('log_date', dateStr).maybeSingle();
+  if(error){
+    console.error('fetchDay failed:', error);
+    toast("Couldn't load today's log — " + (error.message || 'run the latest schema.sql in Supabase'));
+  }
   if(!data) return { foods:[], water_entries:[], water_oz:0, supplements:[] };
   // Migrate legacy rows that only had a raw water_oz number, so a prior total isn't lost.
   if(!data.water_entries || !data.water_entries.length){
@@ -263,21 +271,31 @@ function recalcWaterTotal(day){
 }
 async function saveDayRemote(){
   recalcWaterTotal(state.log);
-  await sb.from('logs').upsert({
+  const { error } = await sb.from('logs').upsert({
     user_id: state.session.user.id, log_date: state.today,
     foods: state.log.foods, water_entries: state.log.water_entries, water_oz: state.log.water_oz,
     supplements: state.log.supplements, updated_at: new Date().toISOString()
   }, { onConflict: 'user_id,log_date' });
+  if(error){
+    console.error('saveDayRemote failed:', error);
+    toast("Didn't save — " + (error.message || 'run the latest schema.sql in Supabase'));
+  }
+  return !error;
 }
 async function fetchWeights(userId, limit){
-  const { data } = await sb.from('weights').select('*').eq('user_id', userId).order('log_date',{ ascending:false }).limit(limit||14);
+  const { data, error } = await sb.from('weights').select('*').eq('user_id', userId).order('log_date',{ ascending:false }).limit(limit||14);
+  if(error) console.error('fetchWeights failed:', error);
   return data || [];
 }
 async function saveWeight(userId, dateStr, weightLb){
-  await sb.from('weights').upsert({ user_id:userId, log_date:dateStr, weight_lb:weightLb, updated_at:new Date().toISOString() }, { onConflict:'user_id,log_date' });
+  const { error } = await sb.from('weights').upsert({ user_id:userId, log_date:dateStr, weight_lb:weightLb, updated_at:new Date().toISOString() }, { onConflict:'user_id,log_date' });
+  if(error){ console.error('saveWeight failed:', error); toast("Didn't save weigh-in — " + (error.message||'check schema.sql')); }
+  return !error;
 }
 async function deleteWeight(userId, dateStr){
-  await sb.from('weights').delete().eq('user_id',userId).eq('log_date',dateStr);
+  const { error } = await sb.from('weights').delete().eq('user_id',userId).eq('log_date',dateStr);
+  if(error){ console.error('deleteWeight failed:', error); toast("Couldn't delete that entry."); }
+  return !error;
 }
 function closeness(actual, target){ if(!target||target<=0) return null; const d=Math.abs(actual-target)/target*100; return Math.max(0,100-d*1.6); }
 function capPct(actual, target){ if(!target||target<=0) return null; return Math.min(100,(actual/target)*100); }
@@ -290,41 +308,50 @@ function underLimitScore(actual, limit){
 function computeTotals(day){
   const t={calories:0,protein:0,carbs:0,fat:0,fiber:0,sugar:0,sodium:0,
     sat_fat:0,trans_fat:0,unsat_fat:0,added_sugar:0,cholesterol:0,micros:{}};
-  Object.keys(state.goals.micros||{}).forEach(m=>t.micros[m]=0);
+  // Tracks whether ANY logged food actually supplied a real (non-blank) value for each
+  // optional nutrient. A field left blank on a food entry must NOT count as "0 consumed" —
+  // that's indistinguishable from "verified zero" and previously caused every limit-type
+  // score to read a false 100% the instant any food was logged, regardless of its real content.
+  const reported = {fiber:false, sugar:false, sodium:false, sat_fat:false, trans_fat:false, unsat_fat:false, added_sugar:false, cholesterol:false};
+  const microReported = {};
+  Object.keys(state.goals.micros||{}).forEach(m=>{ t.micros[m]=0; microReported[m]=false; });
   (day.foods||[]).forEach(f=>{
     t.calories+=f.calories||0; t.protein+=f.protein_g||0; t.carbs+=f.carbs_g||0; t.fat+=f.fat_g||0;
-    t.fiber+=f.fiber_g||0; t.sugar+=f.sugar_g||0; t.sodium+=f.sodium_mg||0;
-    t.sat_fat+=f.sat_fat_g||0; t.trans_fat+=f.trans_fat_g||0; t.unsat_fat+=f.unsat_fat_g||0;
-    t.added_sugar+=f.added_sugar_g||0; t.cholesterol+=f.cholesterol_mg||0;
-    if(f.micros) Object.keys(f.micros).forEach(m=>{ if(t.micros[m]!=null && f.micros[m]!=null) t.micros[m]+=f.micros[m]||0; });
+    if(f.fiber_g!=null){ t.fiber+=f.fiber_g; reported.fiber=true; }
+    if(f.sugar_g!=null){ t.sugar+=f.sugar_g; reported.sugar=true; }
+    if(f.sodium_mg!=null){ t.sodium+=f.sodium_mg; reported.sodium=true; }
+    if(f.sat_fat_g!=null){ t.sat_fat+=f.sat_fat_g; reported.sat_fat=true; }
+    if(f.trans_fat_g!=null){ t.trans_fat+=f.trans_fat_g; reported.trans_fat=true; }
+    if(f.unsat_fat_g!=null){ t.unsat_fat+=f.unsat_fat_g; reported.unsat_fat=true; }
+    if(f.added_sugar_g!=null){ t.added_sugar+=f.added_sugar_g; reported.added_sugar=true; }
+    if(f.cholesterol_mg!=null){ t.cholesterol+=f.cholesterol_mg; reported.cholesterol=true; }
+    if(f.micros) Object.keys(f.micros).forEach(m=>{ if(t.micros[m]!=null && f.micros[m]!=null){ t.micros[m]+=f.micros[m]; microReported[m]=true; } });
   });
+  t.reported = reported;
+  t.microReported = microReported;
   return t;
 }
 function computeDayScoreDetail(day){
   const g=state.goals, t=computeTotals(day), parts=[];
-  const hasFood = (day.foods||[]).length > 0; // limit categories (e.g. "under your sugar limit") are only
-  // meaningful once something's been logged — otherwise 0 consumed always reads as a hollow "100%".
   const cCal=closeness(t.calories,g.calories); if(cCal!=null) parts.push({label:'Calories', pct:cCal});
   const macroScores=[closeness(t.protein,g.protein),closeness(t.carbs,g.carbs),closeness(t.fat,g.fat)].filter(x=>x!=null);
   if(macroScores.length) parts.push({label:'Protein/carbs/fat', pct: macroScores.reduce((a,b)=>a+b,0)/macroScores.length});
-  const fiberScore=capPct(t.fiber,g.fiber); if(fiberScore!=null) parts.push({label:'Fiber', pct:fiberScore});
-  if(hasFood){
-    const sugarScore=underLimitScore(t.sugar,g.sugar_limit); if(sugarScore!=null) parts.push({label:'Sugar limit', pct:sugarScore});
-    const sodiumScore=underLimitScore(t.sodium,g.sodium_limit); if(sodiumScore!=null) parts.push({label:'Sodium limit', pct:sodiumScore});
-    const satFatScore=underLimitScore(t.sat_fat,g.sat_fat_limit); if(satFatScore!=null) parts.push({label:'Saturated fat limit', pct:satFatScore});
-    const transFatScore=underLimitScore(t.trans_fat,g.trans_fat_limit); if(transFatScore!=null) parts.push({label:'Trans fat limit', pct:transFatScore});
-    const addedSugarScore=underLimitScore(t.added_sugar,g.added_sugar_limit); if(addedSugarScore!=null) parts.push({label:'Added sugar limit', pct:addedSugarScore});
-    const cholScore=underLimitScore(t.cholesterol,g.cholesterol_limit); if(cholScore!=null) parts.push({label:'Cholesterol limit', pct:cholScore});
-  }
+  if(t.reported.fiber){ const s=capPct(t.fiber,g.fiber); if(s!=null) parts.push({label:'Fiber', pct:s}); }
+  if(t.reported.sugar){ const s=underLimitScore(t.sugar,g.sugar_limit); if(s!=null) parts.push({label:'Sugar limit', pct:s}); }
+  if(t.reported.sodium){ const s=underLimitScore(t.sodium,g.sodium_limit); if(s!=null) parts.push({label:'Sodium limit', pct:s}); }
+  if(t.reported.sat_fat){ const s=underLimitScore(t.sat_fat,g.sat_fat_limit); if(s!=null) parts.push({label:'Saturated fat limit', pct:s}); }
+  if(t.reported.trans_fat){ const s=underLimitScore(t.trans_fat,g.trans_fat_limit); if(s!=null) parts.push({label:'Trans fat limit', pct:s}); }
+  if(t.reported.added_sugar){ const s=underLimitScore(t.added_sugar,g.added_sugar_limit); if(s!=null) parts.push({label:'Added sugar limit', pct:s}); }
+  if(t.reported.cholesterol){ const s=underLimitScore(t.cholesterol,g.cholesterol_limit); if(s!=null) parts.push({label:'Cholesterol limit', pct:s}); }
   const wScore=capPct(day.water_oz||0,g.water_oz); if(wScore!=null) parts.push({label:'Water', pct:wScore});
   if(g.supplements && g.supplements.length){
     const taken=(day.supplements||[]).filter(s=>s.taken).length;
     parts.push({label:'Supplements', pct: Math.min(100,(taken/g.supplements.length)*100)});
   }
-  const mk=Object.keys(g.micros||{});
+  const mk=Object.keys(g.micros||{}).filter(m=>t.microReported[m]);
   if(mk.length){
     const ms=mk.map(m=>capPct(t.micros[m]||0,g.micros[m])).filter(x=>x!=null);
-    if(ms.length) parts.push({label:'Micronutrients (avg of '+mk.length+')', pct: ms.reduce((a,b)=>a+b,0)/ms.length});
+    if(ms.length) parts.push({label:'Micronutrients (avg of '+ms.length+' with data)', pct: ms.reduce((a,b)=>a+b,0)/ms.length});
   }
   const score = parts.length ? Math.round(parts.reduce((a,b)=>a+b.pct,0)/parts.length) : 0;
   return { score, parts };
@@ -652,12 +679,12 @@ function renderLog(){
     ${ringCard('Protein',Math.round(totals.protein),g.protein,'--signal',Math.round(totals.protein)+'g of '+g.protein+'g')}
     ${ringCard('Carbs',Math.round(totals.carbs),g.carbs,'--violet',Math.round(totals.carbs)+'g of '+g.carbs+'g')}
     ${ringCard('Fat',Math.round(totals.fat),g.fat,'#FFD166',Math.round(totals.fat)+'g of '+g.fat+'g')}
-    ${ringCard('Fiber',Math.round(totals.fiber),g.fiber,'--mint',Math.round(totals.fiber)+'g of '+g.fiber+'g')}
-    ${ringCard('Sugar',Math.round(totals.sugar),g.sugar_limit,'#FFD166',Math.round(totals.sugar)+'g of '+g.sugar_limit+'g max')}
-    ${ringCard('Sodium',Math.round(totals.sodium),g.sodium_limit,'--ember',Math.round(totals.sodium)+'mg of '+g.sodium_limit+'mg max')}
-    ${ringCard('Sat fat',Math.round(totals.sat_fat),g.sat_fat_limit,'#FFD166',Math.round(totals.sat_fat)+'g of '+g.sat_fat_limit+'g max')}
-    ${ringCard('Added sugar',Math.round(totals.added_sugar),g.added_sugar_limit,'#FFD166',Math.round(totals.added_sugar)+'g of '+g.added_sugar_limit+'g max')}
-    ${ringCard('Cholesterol',Math.round(totals.cholesterol),g.cholesterol_limit,'--ember',Math.round(totals.cholesterol)+'mg of '+g.cholesterol_limit+'mg max')}
+    ${ringCard('Fiber',Math.round(totals.fiber),g.fiber,'--mint', totals.reported.fiber ? (Math.round(totals.fiber)+'g of '+g.fiber+'g') : 'no data yet')}
+    ${ringCard('Sugar',Math.round(totals.sugar),g.sugar_limit,'#FFD166', totals.reported.sugar ? (Math.round(totals.sugar)+'g of '+g.sugar_limit+'g max') : 'no data yet')}
+    ${ringCard('Sodium',Math.round(totals.sodium),g.sodium_limit,'--ember', totals.reported.sodium ? (Math.round(totals.sodium)+'mg of '+g.sodium_limit+'mg max') : 'no data yet')}
+    ${ringCard('Sat fat',Math.round(totals.sat_fat),g.sat_fat_limit,'#FFD166', totals.reported.sat_fat ? (Math.round(totals.sat_fat)+'g of '+g.sat_fat_limit+'g max') : 'no data yet')}
+    ${ringCard('Added sugar',Math.round(totals.added_sugar),g.added_sugar_limit,'#FFD166', totals.reported.added_sugar ? (Math.round(totals.added_sugar)+'g of '+g.added_sugar_limit+'g max') : 'no data yet')}
+    ${ringCard('Cholesterol',Math.round(totals.cholesterol),g.cholesterol_limit,'--ember', totals.reported.cholesterol ? (Math.round(totals.cholesterol)+'mg of '+g.cholesterol_limit+'mg max') : 'no data yet')}
     ${ringCard('Water',state.log.water_oz||0,g.water_oz,'--signal',(state.log.water_oz||0)+' of '+g.water_oz+'oz')}
   </div>`);
   wrap.appendChild(ringRow);
@@ -766,28 +793,20 @@ function renderLog(){
           const grams = parseFloat(gramsStr);
           if(!grams) return;
           const mult = grams/100;
-          const scale = (v)=> v==null ? null : Math.round(v*mult);
-          // Setting the field to a distinct "N/A" placeholder (rather than just leaving it blank)
-          // makes it visually clear the source data didn't report this nutrient, vs. the user
-          // simply not having typed anything in yet.
-          const setField = (id, v)=>{
-            const input = foodCard.querySelector(id);
-            if(v==null){ input.value=''; input.placeholder='N/A — not reported'; }
-            else { input.value = v; input.placeholder=''; }
-          };
+          const scale = (v)=> v==null ? '' : Math.round(v*mult);
           foodCard.querySelector('#f-name').value = r.name + ' (' + grams + 'g)';
-          setField('#f-cal', scale(r.per100g.calories));
-          setField('#f-p', scale(r.per100g.protein));
-          setField('#f-c', scale(r.per100g.carbs));
-          setField('#f-f', scale(r.per100g.fat));
-          setField('#f-fiber', scale(r.per100g.fiber));
-          setField('#f-sugar', scale(r.per100g.sugar));
-          setField('#f-sodium', scale(r.per100g.sodium));
-          setField('#f-satfat', scale(r.per100g.sat_fat));
-          setField('#f-transfat', scale(r.per100g.trans_fat));
-          setField('#f-unsatfat', scale(r.per100g.unsat_fat));
-          setField('#f-addedsugar', scale(r.per100g.added_sugar));
-          setField('#f-chol', scale(r.per100g.cholesterol));
+          foodCard.querySelector('#f-cal').value = scale(r.per100g.calories);
+          foodCard.querySelector('#f-p').value = scale(r.per100g.protein);
+          foodCard.querySelector('#f-c').value = scale(r.per100g.carbs);
+          foodCard.querySelector('#f-f').value = scale(r.per100g.fat);
+          foodCard.querySelector('#f-fiber').value = scale(r.per100g.fiber);
+          foodCard.querySelector('#f-sugar').value = scale(r.per100g.sugar);
+          foodCard.querySelector('#f-sodium').value = scale(r.per100g.sodium);
+          foodCard.querySelector('#f-satfat').value = scale(r.per100g.sat_fat);
+          foodCard.querySelector('#f-transfat').value = scale(r.per100g.trans_fat);
+          foodCard.querySelector('#f-unsatfat').value = scale(r.per100g.unsat_fat);
+          foodCard.querySelector('#f-addedsugar').value = scale(r.per100g.added_sugar);
+          foodCard.querySelector('#f-chol').value = scale(r.per100g.cholesterol);
           const scaledMicros = {};
           Object.keys(r.per100g.micros||{}).forEach(k=>{ const v=r.per100g.micros[k]; scaledMicros[k] = v==null ? null : round1(v*mult); });
           lastSearchExtra = scaledMicros;
@@ -832,22 +851,26 @@ function renderLog(){
       <div class="hint">Use the free search above to auto-fill these, or type your own numbers from a nutrition label. Leave a field blank if it's not on the label — it'll be tracked as "not reported" rather than zero.</div>
     </div>
   `);
+  const parseOptNum = (sel)=>{
+    const v = foodCard.querySelector(sel).value;
+    if(v==null || v.trim()==='') return null;
+    const n = parseFloat(v);
+    return isNaN(n) ? null : n;
+  };
   foodCard.querySelector('#f-add').onclick = async ()=>{
     const name = foodCard.querySelector('#f-name').value.trim();
     const cal = parseFloat(foodCard.querySelector('#f-cal').value)||0;
     const p = parseFloat(foodCard.querySelector('#f-p').value)||0;
     const c = parseFloat(foodCard.querySelector('#f-c').value)||0;
     const f = parseFloat(foodCard.querySelector('#f-f').value)||0;
-    const fiber = parseFloat(foodCard.querySelector('#f-fiber').value)||0;
-    const sugar = parseFloat(foodCard.querySelector('#f-sugar').value)||0;
-    const sodium = parseFloat(foodCard.querySelector('#f-sodium').value)||0;
-    // These five are frequently missing from nutrition labels/USDA data — a blank field means
-    // "not reported", which must stay null (not become 0) so the log can show "N/A" for it.
-    const satFat = parseOrNull(foodCard.querySelector('#f-satfat').value);
-    const unsatFat = parseOrNull(foodCard.querySelector('#f-unsatfat').value);
-    const transFat = parseOrNull(foodCard.querySelector('#f-transfat').value);
-    const addedSugar = parseOrNull(foodCard.querySelector('#f-addedsugar').value);
-    const chol = parseOrNull(foodCard.querySelector('#f-chol').value);
+    const fiber = parseOptNum('#f-fiber');
+    const sugar = parseOptNum('#f-sugar');
+    const sodium = parseOptNum('#f-sodium');
+    const satFat = parseOptNum('#f-satfat');
+    const unsatFat = parseOptNum('#f-unsatfat');
+    const transFat = parseOptNum('#f-transfat');
+    const addedSugar = parseOptNum('#f-addedsugar');
+    const chol = parseOptNum('#f-chol');
     if(!name){ toast('Give it a name.'); return; }
     state.log.foods.push({
       id:uid(), name, calories:cal, protein_g:p, carbs_g:c, fat_g:f,
@@ -866,7 +889,8 @@ function renderLog(){
   if(!state.log.foods.length){ listEl.appendChild(el(`<div class="empty">Nothing logged yet today.</div>`)); }
   else {
     state.log.foods.slice().reverse().forEach(f=>{
-      const row = el(`<div class="entry"><div><div class="entry-name">${escapeHtml(f.name)}</div><div class="entry-meta">P ${Math.round(f.protein_g)}g · C ${Math.round(f.carbs_g)}g · F ${Math.round(f.fat_g)}g (sat ${fmtNutrient(f.sat_fat_g,'g')}) · Fiber ${Math.round(f.fiber_g||0)}g · Sugar ${Math.round(f.sugar_g||0)}g (added ${fmtNutrient(f.added_sugar_g,'g')}) · Na ${Math.round(f.sodium_mg||0)}mg · Chol ${fmtNutrient(f.cholesterol_mg,'mg')} · Trans ${fmtNutrient(f.trans_fat_g,'g')} · Unsat ${fmtNutrient(f.unsat_fat_g,'g')}</div></div><div style="display:flex;align-items:center;"><div class="entry-cals">${Math.round(f.calories)}</div><button class="del-btn">✕</button></div></div>`);
+      const na = (v, unit)=> v==null ? 'N/A' : Math.round(v)+unit;
+      const row = el(`<div class="entry"><div><div class="entry-name">${escapeHtml(f.name)}</div><div class="entry-meta">P ${Math.round(f.protein_g)}g · C ${Math.round(f.carbs_g)}g · F ${Math.round(f.fat_g)}g (sat ${na(f.sat_fat_g,'g')}) · Fiber ${na(f.fiber_g,'g')} · Sugar ${na(f.sugar_g,'g')} (added ${na(f.added_sugar_g,'g')}) · Na ${na(f.sodium_mg,'mg')} · Chol ${na(f.cholesterol_mg,'mg')}</div></div><div style="display:flex;align-items:center;"><div class="entry-cals">${Math.round(f.calories)}</div><button class="del-btn">✕</button></div></div>`);
       row.querySelector('.del-btn').onclick = async ()=>{
         state.log.foods = state.log.foods.filter(x=>x.id!==f.id);
         await saveDayRemote(); await pushToLeaderboard(); render();
